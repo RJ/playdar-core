@@ -12,7 +12,7 @@
 -export([test/0]).
 
 % This is a macro to placate syntax highlighters..
--define(Q, $\").
+-define(Q, $\").%"
 -define(ADV_COL(S, N), S#decoder{offset=N+S#decoder.offset,
                                  column=N+S#decoder.column}).
 -define(INC_COL(S), S#decoder{offset=1+S#decoder.offset,

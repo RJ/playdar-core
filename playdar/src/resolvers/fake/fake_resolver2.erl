@@ -4,7 +4,7 @@
 -behaviour(playdar_resolver).
 
 %% API
--export([start_link/0, resolve/2, weight/0, targettime/0]).
+-export([start_link/0, resolve/3, weight/1, targettime/1, name/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -13,13 +13,15 @@
 -record(state, {}).
 
 %% API
-start_link()            -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-resolve(Q, Qpid)        -> gen_server:cast(?MODULE, {resolve, Q, Qpid}).
-weight()                -> 50.
-targettime()            -> 25.
+start_link()            -> gen_server:start_link(?MODULE, [], []).
+resolve(Pid, Q, Qpid)   -> gen_server:cast(Pid, {resolve, Q, Qpid}).
+weight(_Pid)            -> 50.
+targettime(_Pid)        -> 25.
+name(_Pid)              -> "Fake2".
 
 %% gen_server callbacks
 init([]) ->
+    resolver:add_resolver(?MODULE, name(self()), weight(self()), targettime(self()), self()),
     {ok, #state{}}.
 
 handle_call(_Request, _From, State) ->

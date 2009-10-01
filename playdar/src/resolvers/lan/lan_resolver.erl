@@ -7,7 +7,7 @@
 -behaviour(playdar_resolver).
 
 %% API
--export([start_link/0, resolve/2, weight/0, targettime/0, send_response/4]).
+-export([start_link/0, resolve/3, weight/1, targettime/1, name/1, send_response/5]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -17,14 +17,15 @@
 -define(BROADCAST, {239,255,0,1}).
 
 %% API
-start_link()            -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-resolve(Q, Qpid)        -> gen_server:cast(?MODULE, {resolve, Q, Qpid}).
-weight()                -> 95.
-targettime()            -> 50.
+start_link()            -> gen_server:start_link(?MODULE, [], []).
+resolve(Pid, Q, Qpid)   -> gen_server:cast(Pid, {resolve, Q, Qpid}).
+weight(_Pid)            -> 95.
+targettime(_Pid)        -> 50.
+name(_Pid)              -> "Lan".
 
 %% Used as a callback when qry results arrive:
-send_response(A, Qid, Ip, Port) -> 
-    gen_server:cast(?MODULE, {send_response, A, Qid, Ip, Port}).
+send_response(Pid, A, Qid, Ip, Port) -> 
+    gen_server:cast(Pid, {send_response, A, Qid, Ip, Port}).
 
 %% gen_server callbacks
 init([]) ->
@@ -35,6 +36,7 @@ init([]) ->
     {ok, Sock} = gen_udp:open(60210, [binary, 
                                      {reuseaddr, true},{ip, ?BROADCAST}, 
                                      {add_membership, {?BROADCAST, LAddr}}]),
+    resolver:add_resolver(?MODULE, name(self()), weight(self()), targettime(self()), self()),
     {ok, #state{sock=Sock, seenqids=SQ}}.
 
 handle_call(_Request, _From, State) ->
@@ -92,7 +94,8 @@ handle_info({udp, _Socket, {A,B,C,D}=Ip, _InPortNo, Packet}, State) ->
                 [{Qid, true}] -> {noreply, State};
                 _ ->           
                     ets:insert(State#state.seenqids, {Qid,true}),
-                    Cbs = [ fun(Ans)-> ?MODULE:send_response(Ans, Qid, Ip, 60210) end ],
+                    This = self(),
+                    Cbs = [ fun(Ans)-> ?MODULE:send_response(This, Ans, Qid, Ip, 60210) end ],
                     resolver:dispatch({struct,L}, Qid, Cbs),
                     {noreply, State}
             end;

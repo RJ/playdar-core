@@ -4,14 +4,14 @@
 
 %% API
 -export([start_link/0, dispatch/2, dispatch/3, qid2pid/1, sid2pid/1, 
-         resolvers/0, register_sid/2]).
+         resolvers/0, register_sid/2, add_resolver/5]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
      terminate/2, code_change/3]).
 
 -record(state, {queries, sources, resolvers}).
--record(resolver, {name, weight, targettime, pid}).
+-record(resolver, {mod, name, weight, targettime, pid}).
 
 %% API
 start_link()        -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
@@ -28,6 +28,8 @@ register_sid(Sid, Qpid) -> gen_server:cast(?MODULE, {register_sid, Sid, Qpid}).
 
 resolvers()         -> gen_server:call(?MODULE, resolvers).
 
+add_resolver(Mod, Name, Weight, TargetTime, Pid) ->
+    gen_server:cast(?MODULE,{add_resolver, Mod, Name, Weight, TargetTime, Pid}).
 
 %% gen_server callbacks
 init([]) ->
@@ -37,24 +39,29 @@ init([]) ->
     Tid = ets:new(queries, []),
     % and this one maps Source IDs to query pids
     Tid2= ets:new(sources, []),
-    % Load all the resolvers:
+    % Load the resolvers:
     ResNames = [fake_resolver, fake_resolver2, lan_resolver],
-    InitRes = fun(Name) ->
-        {ok, Pid} = Name:start_link(),
-        #resolver{  name=Name, 
-                    weight=Name:weight(), 
-                    targettime=Name:targettime(), 
-                    pid=Pid 
-                 }
-    end,
-    ResolversUnsorted = [ InitRes(R) || R <- ResNames ],
-    Resolvers = lists:keysort(2, ResolversUnsorted), % desc. order of weight
+    lists:foreach(fun(M)-> M:start_link() end, ResNames),
+    % Load script-resolvers:
+    Scripts = [ "~/src/playdar/contrib/demo-script/demo-resolver.php" ],
+    % Resolvers will call resolver:add_resolver() to register themselves
+    % once they've finished their startup routines.
+    % TODO run a supervisor for the various resolvers, add to supervision tree
+    % once they register themselves.
+    lists:foreach(fun(S)-> script_resolver:start_link(S) end, Scripts),
     {ok, #state{    queries=Tid, 
                     sources=Tid2, 
-                    resolvers=Resolvers}}.
+                    resolvers=[]}}.
 
 handle_call(resolvers, _From, State) ->
-    {reply, State#state.resolvers, State};
+    % the #resolver record is internal to this module
+    % so we make a proplist for handing out externally:
+    Res = [ [{mod, R#resolver.mod},
+             {name, R#resolver.name},
+             {weight, R#resolver.weight},
+             {targettime, R#resolver.targettime},
+             {pid, R#resolver.pid}] || R <- State#state.resolvers ],
+    {reply, Res, State};
 
 handle_call({qid2pid, Qid}, _From, State) ->
     case ets:lookup(State#state.queries, {qid, Qid}) of
@@ -89,8 +96,17 @@ handle_call({dispatch, Q, Qid, Cbs}, _From, State) ->
 			{reply, Pid, State}
 	end.
 
+
+handle_cast({add_resolver,Mod, Name, Weight, TargetTime, Pid}, State) ->
+    io:format("add_resolver: Mod:~w\tName:'~s'\tWeight:~w\tTT:~w\tPid:~w~n",
+                [Mod, Name, Weight, TargetTime, Pid]),
+    R = #resolver{mod=Mod, name=Name, weight=Weight, targettime=TargetTime, pid=Pid},
+    % 4 is the pos in the #resolver tuple for "weight":
+    Resolvers = lists:reverse(lists:keysort(3, [R|State#state.resolvers])),
+    {noreply, State#state{resolvers=Resolvers}};
+
 handle_cast({register_sid, Sid, Qpid}, State) ->
-    io:format("Register sid: ~p to qpid: ~p~n",[Sid, Qpid]),
+    %io:format("Register sid: ~p to qpid: ~p~n",[Sid, Qpid]),
     ets:insert(State#state.sources, {{sid, Sid}, Qpid}),
     {noreply, State}.
 
@@ -119,17 +135,17 @@ start_resolver_pipeline(_, _, [], _) -> ok;
 start_resolver_pipeline(Q, Qpid, [H|Resolvers], {LastWeight, LastTime}) ->
     case LastWeight of
         -1 -> % first iteration
-            (H#resolver.name):resolve(Q, Qpid),
+            (H#resolver.mod):resolve(H#resolver.pid, Q, Qpid),
             start_resolver_pipeline(Q, Qpid, Resolvers, {H#resolver.weight, H#resolver.targettime});
         _  -> 
             if
                 LastWeight == H#resolver.weight ->
                     % same weight, dispatch immediately
-                    (H#resolver.name):resolve(Q, Qpid),
+                    (H#resolver.mod):resolve(H#resolver.pid, Q, Qpid),
                     start_resolver_pipeline(Q, Qpid, Resolvers, {LastWeight, min(H#resolver.targettime, LastTime)});
                 true ->
                     % dispatch after delay, save timer ref for possible cancellation if solved
-                    {ok, Tref} = timer:apply_after(LastTime, H#resolver.name, resolve, [Q, Qpid]),
+                    {ok, Tref} = timer:apply_after(LastTime, H#resolver.mod, resolve, [H#resolver.pid, Q, Qpid]),
                     qry:add_timer(Qpid, Tref),
                     start_resolver_pipeline(Q, Qpid, Resolvers, {H#resolver.weight, H#resolver.targettime})
             end

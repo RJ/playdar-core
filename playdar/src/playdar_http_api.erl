@@ -45,14 +45,14 @@ http_req(Req) ->
                     Req:not_found();
                 _ ->
                     Results = qry:results(Qpid),
-                    %ResultsJ = [ {struct,L} || L <- Results ],
                     Q = qry:q(Qpid),
-                    %QJ = {struct, [ {atom_to_list(K),V} || {K,V} <- Q ] },
                     R = {struct,[
                             {"qid", Qid},
                             {"refresh_interval", 1000},
                             {"query", Q},
-                            {"results", Results}
+                            {"results", 
+                                [ {struct, proplists:delete(<<"url">>,L)} || 
+                                  {struct, L} <- Results ]}
                         ]},
                     respond(Req, R)
              end;

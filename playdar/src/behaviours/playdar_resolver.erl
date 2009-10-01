@@ -3,10 +3,11 @@
 -export([behaviour_info/1]).
 
 behaviour_info(callbacks) -> 
-	[{weight,0},
-	 {targettime,0},
-	 {resolve,2},
-	 {start_link,0}
+	[
+     {name,1},
+     {weight,1},
+	 {targettime,1},
+	 {resolve,3}
 	];
 
 behaviour_info(_Other) ->

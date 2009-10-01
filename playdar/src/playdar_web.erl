@@ -38,7 +38,18 @@ loop(Req, DocRoot) ->
     
     case Path of
         "" -> 
-            Req:ok({"text/html", "<h1>Playdar</h1>Playdar-erlang is running"});
+            Rlist = [ io_lib:format("resolver: <b>~s</b> ~w (~wms) pid: ~p mod: ~w<br/>",
+                                    [proplists:get_value(name, R),
+                                     proplists:get_value(weight, R),
+                                     proplists:get_value(targettime, R),
+                                     proplists:get_value(pid, R),
+                                     proplists:get_value(mod, R)])
+                      || R <- resolver:resolvers()],
+            
+            Msg = "<h1>Playdar</h1>Playdar-erlang is running<br/><hr/><br/>" ++
+                  Rlist,
+            
+            Req:ok({"text/html", Msg});
         
         % serving a file that was found by a query, based on SID:
         "sid/" ++ SidL ->
