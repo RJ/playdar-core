@@ -1,9 +1,6 @@
-%% @author author <author@example.com>
-%% @copyright YYYY author.
+%% @doc Supervisor for the playdar application.
 
-%% @doc Supervisor for the playdar_httpd application.
-
--module(playdar_httpd_sup).
+-module(playdar_sup).
 -author('author <author@example.com>').
 
 -behaviour(supervisor).
@@ -44,11 +41,26 @@ init([]) ->
     Ip = case os:getenv("MOCHIWEB_IP") of false -> "0.0.0.0"; Any -> Any end,   
     WebConfig = [
          {ip, Ip},
-                 {port, 8000},
-                 {docroot, playdar_httpd_deps:local_path(["priv", "www"])}],
-    Web = {playdar_httpd_web,
-           {playdar_httpd_web, start, [WebConfig]},
-           permanent, 5000, worker, dynamic},
+                 {port, 60210},
+                 {docroot, playdar_deps:local_path(["priv", "www"])}
+    ],
+    % Specs:
+    Web         = { playdar_web,
+                    {playdar_web, start, [WebConfig]},
+                    permanent, 5000, worker, dynamic},
 
-    Processes = [Web],
+    Resolver    = { resolver, 
+                    {resolver, start_link, []},
+                    permanent, 10, worker, [] },
+
+    HttpBroker  = { http_broker, 
+                    {http_broker, start_link, []},
+                    permanent, 10, worker, [] },
+
+
+    Processes = [Resolver, HttpBroker, Web],
+
     {ok, {{one_for_one, 10, 10}, Processes}}.
+
+
+

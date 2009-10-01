@@ -1,9 +1,9 @@
 %% @author author <author@example.com>
 %% @copyright YYYY author.
 
-%% @doc Callbacks for the playdar_httpd application.
+%% @doc Callbacks for the playdar application.
 
--module(playdar_httpd_app).
+-module(playdar_app).
 -author('author <author@example.com>').
 
 -behaviour(application).
@@ -11,12 +11,12 @@
 
 
 %% @spec start(_Type, _StartArgs) -> ServerRet
-%% @doc application start callback for playdar_httpd.
+%% @doc application start callback for playdar.
 start(_Type, _StartArgs) ->
-    playdar_httpd_deps:ensure(),
-    playdar_httpd_sup:start_link().
+    playdar_deps:ensure(),
+    playdar_sup:start_link().
 
 %% @spec stop(_State) -> ServerRet
-%% @doc application stop callback for playdar_httpd.
+%% @doc application stop callback for playdar.
 stop(_State) ->
     ok.

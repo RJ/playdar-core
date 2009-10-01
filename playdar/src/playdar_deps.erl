@@ -5,7 +5,7 @@
 %%      loading path, and locate resources relative
 %%      to this application's path.
 
--module(playdar_httpd_deps).
+-module(playdar_deps).
 -author('author <author@example.com>').
 
 -export([ensure/0, ensure/1]).

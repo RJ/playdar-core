@@ -1,5 +1,15 @@
 A ground-up rewrite of Playdar (http://github.com/RJ/playdar) in Erlang.
-
 Once it matches the original in features, the C++ codebase will be deprecated.
-
 http://www.playdar.org/
+
+Building
+--------
+
+ $ cd playdar
+ $ make
+
+Running
+-------
+
+ $ ./start-dev.sh
+
