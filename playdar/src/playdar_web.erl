@@ -50,12 +50,16 @@ loop(Req, DocRoot) ->
                     stream_reader:start_link(A, self(), Ref),
                     stream_result(Req, Ref)
             end;
+
+        % hardcoded support for api/
+        "api/" ++ _ ->
+            playdar_http_api:http_req(Req);
         
         % else hand off to module:
         _ -> 
             Parts = string:tokens(Req:get(path),"/"),
             Mod = hd(Parts),
-            Modules = ["api"], % modules whitelist (TODO, use loaded plugins)
+            Modules = [], % modules whitelist (TODO, use loaded plugins)
             case lists:foldl( fun(X,A) -> case X of Mod -> A+1 ; _ -> A end end,
                               0, Modules) of
                 0 ->
