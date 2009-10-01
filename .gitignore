@@ -2,3 +2,5 @@
 *.swp
 *.beam
 *.dets
+/playdar/ebin
+/playdar/doc
