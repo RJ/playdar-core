@@ -60,7 +60,8 @@ loop(Req, DocRoot) ->
                 Qpid ->
                     Ref = make_ref(),
                     A = qry:result(Qpid, Sid),
-                    stream_reader:start_link(A, self(), Ref),
+                    StreamFun = stream_registry:get_streamer(A, self(), Ref),
+                    StreamFun(),
                     stream_result(Req, Ref)
             end;
 

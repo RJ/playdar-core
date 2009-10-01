@@ -54,12 +54,16 @@ init([]) ->
                     {resolver, start_link, []},
                     permanent, 10, worker, [] },
 
+    Streamer    = { stream_registry, 
+                    {stream_registry, start_link, []},
+                    permanent, 10, worker, [] },
+
     HttpBroker  = { http_broker, 
                     {http_broker, start_link, []},
                     permanent, 10, worker, [] },
 
 
-    Processes = [Resolver, HttpBroker, Web],
+    Processes = [Streamer, Resolver, HttpBroker, Web],
 
     {ok, {{one_for_one, 10, 10}, Processes}}.
 
