@@ -36,7 +36,7 @@ handle_cast({resolve, Q, Qpid}, State) ->
                                 {<<"track">>,  <<"Unforgiven">>},
                                 {<<"album">>,  <<"Self-titled">>},
                                 {<<"score">>, 0.2},
-                                {<<"url">>, <<"http://www.playdar.org/hidden.mp3">>}
+                                {<<"url">>, <<"http://www.playdar.org/hiding.mp3">>}
                             ]},
                     qry:add_result(Qpid, Rep);
                 _ -> noop
