@@ -14,4 +14,4 @@
   {registered, []},
   {mod, {playdar_app, []}},
   {env, []},
-  {applications, [kernel, stdlib, crypto, inets]}]}.
+  {applications, [kernel, stdlib, crypto]}]}.
