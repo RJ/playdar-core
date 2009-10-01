@@ -5,7 +5,7 @@
 
 -module(playdar_web).
 -author('author <author@example.com>').
-
+-import(random).
 -export([start/1, stop/0, loop/2]).
 
 %% External API
@@ -31,6 +31,8 @@ stop() ->
     mochiweb_http:stop(?MODULE).
 
 loop(Req, DocRoot) ->
+	{R1,R2,R3} = now(),
+	random:seed(R1,R2,R3),
     io:format("GET ~p~n", [Req:get(raw_path)]),
     "/" ++ Path = Req:get(path),
     

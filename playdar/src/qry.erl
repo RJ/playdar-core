@@ -1,6 +1,6 @@
 %% Represents a query, receives and holds all matches
 -module(qry).
-
+-import(random).
 -behaviour(gen_server).
 
 %% API
@@ -30,6 +30,8 @@ add_result_callback(Pid, C) -> gen_server:cast(Pid, {add_result_callback, C}).
 
 %% gen_server callbacks
 init([Q, Qid]) ->
+	{R1,R2,R3} = now(),
+	random:seed(R1,R2,R3),
     {ok, #state{    q = Q, 
                     qid = Qid, 
                     results = [], 

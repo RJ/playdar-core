@@ -31,6 +31,8 @@ resolvers()         -> gen_server:call(?MODULE, resolvers).
 
 %% gen_server callbacks
 init([]) ->
+	{R1,R2,R3} = now(),
+	random:seed(R1,R2,R3),
     % This ets maps Qids to query pids:
     Tid = ets:new(queries, []),
     % and this one maps Source IDs to query pids
@@ -71,15 +73,21 @@ handle_call({sid2pid, Sid}, _From, State) ->
     end;
     
 handle_call({dispatch, Q, Qid, Cbs}, _From, State) ->
-    % spawn a qry process to hold this query:
-    {ok, Pid} = gen_server:start(qry, [Q, Qid], []),
-    % register callbacks before triggering search:
-    lists:foreach(fun(C) -> qry:add_result_callback(Pid, C) end, Cbs),
-    % keep track of qid -> qry_pid
-    ets:insert(State#state.queries, {{qid, Qid}, Pid}),
-    % dispatch to resolvers
-    start_resolver_pipeline(Q, Pid, State#state.resolvers),
-    {reply, Pid, State}.
+	% First of all, do nothing if a query with this Qid already exists:
+	case ets:lookup(State#state.queries, {qid, Qid}) of
+		[P] when is_pid(P) ->
+			{reply, P, State};
+		_ ->
+			% spawn a qry process to hold this query:
+			{ok, Pid} = gen_server:start(qry, [Q, Qid], []),
+			% register callbacks before triggering search:
+			lists:foreach(fun(C) -> qry:add_result_callback(Pid, C) end, Cbs),
+			% keep track of qid -> qry_pid
+			ets:insert(State#state.queries, {{qid, Qid}, Pid}),
+			% dispatch to resolvers
+			start_resolver_pipeline(Q, Pid, State#state.resolvers),
+			{reply, Pid, State}
+	end.
 
 handle_cast({register_sid, Sid, Qpid}, State) ->
     io:format("Register sid: ~p to qpid: ~p~n",[Sid, Qpid]),
