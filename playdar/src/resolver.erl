@@ -43,7 +43,7 @@ init([]) ->
     ResNames = [fake_resolver, fake_resolver2, lan_resolver],
     lists:foreach(fun(M)-> M:start_link() end, ResNames),
     % Load script-resolvers:
-    Scripts = [ "~/src/playdar/contrib/demo-script/demo-resolver.php" ],
+    Scripts = [ "/home/rj/src/playdar/contrib/demo-script/demo-resolver.php" ],
     % Resolvers will call resolver:add_resolver() to register themselves
     % once they've finished their startup routines.
     % TODO run a supervisor for the various resolvers, add to supervision tree
@@ -102,7 +102,7 @@ handle_cast({add_resolver,Mod, Name, Weight, TargetTime, Pid}, State) ->
                 [Mod, Name, Weight, TargetTime, Pid]),
     R = #resolver{mod=Mod, name=Name, weight=Weight, targettime=TargetTime, pid=Pid},
     % 4 is the pos in the #resolver tuple for "weight":
-    Resolvers = lists:reverse(lists:keysort(3, [R|State#state.resolvers])),
+    Resolvers = lists:reverse(lists:keysort(4, [R|State#state.resolvers])),
     {noreply, State#state{resolvers=Resolvers}};
 
 handle_cast({register_sid, Sid, Qpid}, State) ->
