@@ -6,6 +6,10 @@
 ERL := erl
 ERLC := $(ERL)c
 
+EBIN_DIR := ../ebin
+DOC_DIR  := ../doc
+EMULATOR := beam
+
 INCLUDE_DIRS := ../include $(wildcard ../deps/*/include)
 EBIN_DIRS := $(wildcard ../deps/*/ebin)
 ERLC_FLAGS := -W $(INCLUDE_DIRS:../%=-I ../%) $(EBIN_DIRS:%=-pa %)
@@ -17,10 +21,6 @@ endif
 ifdef debug
   ERLC_FLAGS += -Ddebug
 endif
-
-EBIN_DIR := ../ebin
-DOC_DIR  := ../doc
-EMULATOR := beam
 
 ERL_SOURCES := $(wildcard *.erl)
 ERL_HEADERS := $(wildcard *.hrl) $(wildcard ../include/*.hrl)
@@ -36,10 +36,10 @@ MODULES = $(ERL_SOURCES:%.erl=%)
 	cp $< $@
 
 $(EBIN_DIR)/%.$(EMULATOR): %.erl
-	$(ERLC) $(ERLC_FLAGS) -o $(EBIN_DIR) $<
+	$(ERLC) $(ERLC_FLAGS) -pa $(EBIN_DIR) -o $(EBIN_DIR) $<
 
 ./%.$(EMULATOR): %.erl
-	$(ERLC) $(ERLC_FLAGS) -o . $<
+	$(ERLC) $(ERLC_FLAGS) -pa $(EBIN_DIR) -o . $<
 
 $(DOC_DIR)/%.html: %.erl
 	$(ERL) -noshell -run edoc file $< -run init stop

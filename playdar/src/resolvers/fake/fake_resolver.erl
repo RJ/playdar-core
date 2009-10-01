@@ -3,6 +3,7 @@
 -module(fake_resolver).
 
 -behaviour(gen_server).
+-behaviour(playdar_resolver).
 
 %% API
 -export([start_link/0, resolve/2, weight/0, targettime/0]).
@@ -19,7 +20,7 @@ resolve(Q, Qpid)        -> gen_server:cast(?MODULE, {resolve, Q, Qpid}).
 weight()                -> 100.
 targettime()            -> 20.
 
-%% gen_server callbacks
+%% gen_server callbacks 
 init([]) ->
     {ok, #state{}}.
 

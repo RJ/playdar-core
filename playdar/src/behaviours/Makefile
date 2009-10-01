@@ -2,12 +2,10 @@ include ../../support/include.mk
 EBIN_DIR := ../../ebin
 DOC_DIR  := ../../doc
 
-DIRS = fake lan
-
-all:
-	cd fake; $(MAKE)
-	cd lan; $(MAKE)
+all: $(EBIN_FILES)
 
 debug:
+	$(MAKE) DEBUG=-DDEBUG
 
 clean:
+	rm -rf $(EBIN_FILES)

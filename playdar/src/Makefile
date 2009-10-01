@@ -1,8 +1,9 @@
 include ../support/include.mk
 
-#DIRS    = readers
+DIRS    = readers resolvers behaviours
 
-all: $(EBIN_FILES)
+all: $(EBIN_FILES_NO_DOCS)
+	cd behaviours; $(MAKE)
 	cd readers; $(MAKE)
 	cd resolvers; $(MAKE)
 

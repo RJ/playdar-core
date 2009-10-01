@@ -1,6 +1,7 @@
 -module(fake_resolver2).
 
 -behaviour(gen_server).
+-behaviour(playdar_resolver).
 
 %% API
 -export([start_link/0, resolve/2, weight/0, targettime/0]).
