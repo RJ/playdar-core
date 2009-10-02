@@ -1,0 +1,12 @@
+{% include "header.inc.html" %}
+<h2>Queries</h2>
+
+{% for q in queries %}
+<a href="/queries/{{ q.qid }}">{{ q.qid }}</a> [{{ q.num_results }} results]<br/>
+<pre>
+{{ q.qry }}
+</pre><br/>
+{% endfor %}
+
+</body>
+</html>

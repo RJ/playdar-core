@@ -4,7 +4,8 @@
 
 %% API
 -export([start_link/0, dispatch/2, dispatch/3, qid2pid/1, sid2pid/1, 
-         resolvers/0, register_sid/2, add_resolver/5, resolver_pid/1]).
+         resolvers/0, register_sid/2, add_resolver/5, resolver_pid/1,
+         queries/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -17,16 +18,14 @@
 start_link()        -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 % dispatch a Query, returns the query pid
-%dispatch(Q)         -> dispatch(Q, utils:uuid_gen()).
 dispatch(Q, Qid)        -> dispatch(Q, Qid, []).
 dispatch(Q, Qid, Cbs)   -> gen_server:call(?MODULE, {dispatch, Q, Qid, Cbs}).
-
-qid2pid(Qid)        -> gen_server:call(?MODULE, {qid2pid, Qid}).
-sid2pid(Sid)        -> gen_server:call(?MODULE, {sid2pid, Sid}).
-
+qid2pid(Qid)            -> gen_server:call(?MODULE, {qid2pid, Qid}).
+sid2pid(Sid)            -> gen_server:call(?MODULE, {sid2pid, Sid}).
 register_sid(Sid, Qpid) -> gen_server:cast(?MODULE, {register_sid, Sid, Qpid}).
+resolvers()             -> gen_server:call(?MODULE, resolvers).
+queries()               -> gen_server:call(?MODULE, queries).
 
-resolvers()         -> gen_server:call(?MODULE, resolvers).
 
 % Helper function, handy for getting pid of library for scanning.
 resolver_pid(Mod)  -> 
@@ -74,6 +73,9 @@ init([]) ->
                     sources=Tid2, 
                     resolvers=[]}}.
 
+handle_call(queries, _From, State) ->
+    {reply, ets:tab2list(State#state.queries), State};
+    
 handle_call(resolvers, _From, State) ->
     % the #resolver record is internal to this module
     % so we make a proplist for handing out externally:

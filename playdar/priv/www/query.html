@@ -1,0 +1,24 @@
+{% include "header.inc.html" %}
+<h2>Query {{ qid }}</h2>
+<pre>
+{{ qry }}
+</pre>
+<table>
+<tr style="font-weight:bold;">
+<td>SID</td>
+<td>Score</td>
+<td>Artist</td>
+<td>Track</td>
+</tr>
+{% for r in results %}
+<tr>
+<td><a href="/sid/{{ r.sid }}">{{ r.sid }}</a></td>
+<td>{{ r.score }}</td>
+<td>{{ r.artist }}</td>
+<td>{{ r.track }}</td>
+</tr>
+{% endfor %}
+</table>
+
+</body>
+</html>

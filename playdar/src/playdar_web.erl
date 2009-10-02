@@ -41,10 +41,7 @@ loop(Req, DocRoot) ->
             Resolvers = [ [{"mod", atom_to_list(proplists:get_value(mod, Pl))}|proplists:delete(mod,Pl)]
                                || Pl <- resolver:resolvers() ],
             Vars = [ {resolvers, Resolvers} ],
-            ok = erlydtl:compile(DocRoot ++ "/index.html", tpl_index),
-            {ok, HtmlIO} =  tpl_index:render(Vars),
-            Html = lists:flatten(HtmlIO),
-            Req:ok({"text/html",Html});
+            render(Req, DocRoot ++ "/index.html", Vars);
         
         % serving a file that was found by a query, based on SID:
         "sid/" ++ SidL ->
@@ -60,6 +57,28 @@ loop(Req, DocRoot) ->
                     stream_result(Req, Ref)
             end;
 
+        "queries" ->
+            Qrys = resolver:queries(),
+            Fun = fun({{qid, Qid},Qpid}) ->
+                Json = mochijson2:encode(qry:q(Qpid)),
+                NumResults = length(qry:results(Qpid)),
+                [{qid,Qid}, {qry,Json}, {num_results,NumResults}]
+            end,
+            Vars = [ {queries, [Fun(Q) || Q <- Qrys]} ],
+            render(Req, DocRoot ++ "/queries.html", Vars);
+        
+        "queries/" ++ Qid ->
+            case resolver:qid2pid(list_to_binary(Qid)) of
+                undefined -> Req:not_found();
+                Qpid when is_pid(Qpid)->
+                    Results = [ [{list_to_atom(binary_to_list(K)),V}||{K,V}<-L] 
+                                || {struct, L} <- qry:results(Qpid) ],
+                    Vars = [ {qid, Qid},
+                             {qry, mochijson2:encode(qry:q(Qpid))}, 
+                             {results, Results} ],
+                    render(Req, DocRoot ++ "/query.html", Vars)
+            end;
+        
         % hand off dynamically:
         _ -> 
             case http_registry:get_handler(Req:get(path)) of
@@ -72,6 +91,12 @@ loop(Req, DocRoot) ->
 
 
 %% Internal API
+  
+render(Req, File, Vars) ->
+    ok = erlydtl:compile(File, tpl_index),
+    {ok, HtmlIO} =  tpl_index:render(Vars),
+    Html = lists:flatten(HtmlIO),
+    Req:ok({"text/html",Html}).
 
 stream_result(Req, Ref) ->
     receive
