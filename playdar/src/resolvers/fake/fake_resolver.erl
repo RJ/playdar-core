@@ -17,7 +17,7 @@
 %% API
 start_link()            -> gen_server:start_link(?MODULE, [], []).
 resolve(Pid, Q, Qpid)   -> gen_server:cast(Pid, {resolve, Q, Qpid}).
-weight(_Pid)            -> 100.
+weight(_Pid)            -> 60.
 targettime(_Pid)        -> 20.
 name(_Pid)              -> "Fake1".
 

@@ -4,7 +4,7 @@
 
 %% API
 -export([start_link/0, dispatch/2, dispatch/3, qid2pid/1, sid2pid/1, 
-         resolvers/0, register_sid/2, add_resolver/5]).
+         resolvers/0, register_sid/2, add_resolver/5, resolver_pid/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -28,6 +28,14 @@ register_sid(Sid, Qpid) -> gen_server:cast(?MODULE, {register_sid, Sid, Qpid}).
 
 resolvers()         -> gen_server:call(?MODULE, resolvers).
 
+% Helper function, handy for getting pid of library for scanning.
+resolver_pid(Mod)  -> 
+    case lists:filter(fun(R)->proplists:get_value(mod,R) == Mod end, 
+                      resolver:resolvers()) of
+        [] -> undefined;
+        [List] -> proplists:get_value(pid,List)
+    end.
+
 add_resolver(Mod, Name, Weight, TargetTime, Pid) ->
     gen_server:cast(?MODULE,{add_resolver, Mod, Name, Weight, TargetTime, Pid}).
 
@@ -41,7 +49,7 @@ init([]) ->
     % and this one maps Source IDs to query pids
     Tid2= ets:new(sources, []),
     % Load the resolvers:
-    ResNames = [fake_resolver, fake_resolver2, lan_resolver],%, library],
+    ResNames = [fake_resolver, fake_resolver2, lan_resolver, library],
     ResSpecs = [ {Mod, 
                   {Mod, start_link, []}, 
                   transient, 5, worker, [Mod]} 

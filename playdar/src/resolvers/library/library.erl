@@ -180,10 +180,10 @@ list_add([]) -> [];
 list_add([{Lk,Lv}|Lt]) -> list_add(Lt,[{Lk,Lv}]).
 list_add([],Agg) -> Agg;
 list_add([{Hk,Hv} | T], [{Hk,Av}|At]) -> list_add(T, [{Hk,Hv+Av}|At]);
-list_add([{Hk,Hv} | T], [{Ak,Av}|_]=Agg) -> list_add(T, [{Hk, Hv}|Agg]).
+list_add([{Hk,Hv} | T], [{_Ak,_Av}|_]=Agg) -> list_add(T, [{Hk, Hv}|Agg]).
 
 % Search mnesia database for best results
-search(Art,Alb,Trk) ->
+search(Art,_Alb,Trk) ->
     L = [{artist, N} || {N,_Num} <- ngram(Art)] ++
         [{track,  N} || {N,_Num} <- ngram(Trk)],
     {atomic, C} = mnesia:transaction(fun()-> 
@@ -226,7 +226,7 @@ first_run() ->
     io:format("Creating table 'file'..\n",[]),
     mnesia:create_table(file,
             [
-                {ram_copies, [node()]},
+                {disc_copies, [node()]},
                 {attributes, record_info(fields, file)},
                 {index, [artist, track]}, 
                 {type, set}
@@ -235,7 +235,7 @@ first_run() ->
     io:format("Creating table 'ngram'..\n",[]),
     mnesia:create_table(ngram,
             [
-                {ram_copies, [node()]},
+                {disc_copies, [node()]},
                 {attributes, record_info(fields, ngram)},
                 {index, []}, 
                 {type, bag}
