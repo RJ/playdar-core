@@ -63,8 +63,10 @@ handle_cast({resolve, Q, Qpid}, State) ->
                                 {<<"album">>,  File#file.album},
                                 {<<"mimetype">>, File#file.mimetype},
                                 {<<"score">>, Score},
-                                {<<"url">>, File#file.url}
-                                
+                                {<<"url">>, File#file.url},
+                                {<<"duration">>, File#file.duration},
+                                {<<"bitrate">>, File#file.bitrate},
+                                {<<"size">>, File#file.size}
                             ]},
                 qry:add_result(Qpid, Rep)                
             end,
