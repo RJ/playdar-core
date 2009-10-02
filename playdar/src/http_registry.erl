@@ -1,11 +1,11 @@
 % Keeps a map of url prefix -> module/handler
 % so plugins can register to handle certain web requests.
--module(http_broker).
+-module(http_registry).
 
 -behaviour(gen_server).
 
 %% API
--export([start_link/0]).
+-export([start_link/0, get_handler/1, register_handler/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -26,6 +26,8 @@ register_handler(Urlprefix, Fun) ->
 %% gen_server callbacks
 init([]) ->
     P = ets:new(db, []),
+    % hardcoded handlers that ship by default:
+    register_handler("api", fun playdar_http_api:http_req/1),
     {ok, #state{db=P}}.
 
 handle_call({get_handler, Url}, _From, State) ->

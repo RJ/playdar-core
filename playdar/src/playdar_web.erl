@@ -65,24 +65,14 @@ loop(Req, DocRoot) ->
                     stream_result(Req, Ref)
             end;
 
-        % hardcoded support for api/
-        "api/" ++ _ ->
-            playdar_http_api:http_req(Req);
-        
-        % else hand off to module:
+        % hand off dynamically:
         _ -> 
-            Parts = string:tokens(Req:get(path),"/"),
-            Mod = hd(Parts),
-            Modules = [], % modules whitelist (TODO, use loaded plugins)
-            case lists:foldl( fun(X,A) -> case X of Mod -> A+1 ; _ -> A end end,
-                              0, Modules) of
-                0 ->
-                    Req:not_found();
-                _ ->
-                    Module = list_to_atom("playdar_http_" ++ Mod),
-                    % TODO filter/verify valid module names
-                    Module:http_req(Req)
-           end
+            case http_registry:get_handler(Req:get(path)) of
+                undefined ->
+                    Req:not_found();     
+                Handler ->
+                    Handler(Req)
+            end
     end.
 
 
