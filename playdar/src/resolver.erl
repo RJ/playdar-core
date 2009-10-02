@@ -35,20 +35,33 @@ add_resolver(Mod, Name, Weight, TargetTime, Pid) ->
 init([]) ->
 	{R1,R2,R3} = now(),
 	random:seed(R1,R2,R3),
+    process_flag(trap_exit, true),
     % This ets maps Qids to query pids:
     Tid = ets:new(queries, []),
     % and this one maps Source IDs to query pids
     Tid2= ets:new(sources, []),
     % Load the resolvers:
-    ResNames = [fake_resolver, fake_resolver2, lan_resolver, library],
-    lists:foreach(fun(M)-> M:start_link() end, ResNames),
+    ResNames = [fake_resolver, fake_resolver2, lan_resolver],%, library],
+    ResSpecs = [ {Mod, 
+                  {Mod, start_link, []}, 
+                  transient, 5, worker, [Mod]} 
+                || Mod <- ResNames ],
+    ok = supervisor:check_childspecs(ResSpecs),
     % Load script-resolvers:
     Scripts = [ "/home/rj/src/playdar/contrib/demo-script/demo-resolver.php" ],
+    ScriptSpecs = [ {list_to_atom(Script), 
+                     {script_resolver, start_link, [Script]}, 
+                     transient, 5, worker, [script_resolver]} 
+                   || Script <- Scripts ],
+    ok = supervisor:check_childspecs(ScriptSpecs),
+    Specs = ResSpecs ++ ScriptSpecs,    
+    % Adding to our own supervisor from here must be done by another proc or
+    % it deadlocks:
+    lists:foreach(fun(Spec) -> 
+                    spawn(supervisor, start_child, [resolver_sup, Spec])
+                  end, Specs),
     % Resolvers will call resolver:add_resolver() to register themselves
     % once they've finished their startup routines.
-    % TODO run a supervisor for the various resolvers, add to supervision tree
-    % once they register themselves.
-    lists:foreach(fun(S)-> script_resolver:start_link(S) end, Scripts),
     {ok, #state{    queries=Tid, 
                     sources=Tid2, 
                     resolvers=[]}}.
@@ -98,6 +111,7 @@ handle_call({dispatch, Q, Qid, Cbs}, _From, State) ->
 
 
 handle_cast({add_resolver,Mod, Name, Weight, TargetTime, Pid}, State) ->
+    link(Pid),
     io:format("add_resolver: Mod:~w\tName:'~s'\tWeight:~w\tTT:~w\tPid:~w~n",
                 [Mod, Name, Weight, TargetTime, Pid]),
     R = #resolver{mod=Mod, name=Name, weight=Weight, targettime=TargetTime, pid=Pid},
@@ -110,6 +124,12 @@ handle_cast({register_sid, Sid, Qpid}, State) ->
     ets:insert(State#state.sources, {{sid, Sid}, Qpid}),
     {noreply, State}.
 
+handle_info({'EXIT', Pid, _Reason}, State) ->
+    % remove this crashed resolver from our list,
+    % the supervisor will restart it as necessary:
+    R = lists:filter( fun(X)-> X#resolver.pid /= Pid end, State#state.resolvers),
+    {noreply, State#state{resolvers=R}};
+           
 handle_info(_Info, State) ->
     {noreply, State}.
 

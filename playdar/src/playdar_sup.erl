@@ -49,21 +49,21 @@ init([]) ->
     Web         = { playdar_web,
                     {playdar_web, start, [WebConfig]},
                     permanent, 5000, worker, dynamic},
-
-    Resolver    = { resolver, 
-                    {resolver, start_link, []},
-                    permanent, 10, worker, [] },
+    
+    ResolverSup = { resolver_sup,
+                    {resolver_sup, start_link, []},
+                    transient, infinity, supervisor, [resolver_sup]},
 
     Streamer    = { stream_registry, 
                     {stream_registry, start_link, []},
-                    permanent, 10, worker, [] },
+                    permanent, 1000, worker, [] },
 
     HttpBroker  = { http_broker, 
                     {http_broker, start_link, []},
-                    permanent, 10, worker, [] },
+                    permanent, 1000, worker, [] },
 
 
-    Processes = [Streamer, Resolver, HttpBroker, Web],
+    Processes = [Streamer, ResolverSup, HttpBroker, Web],
 
     {ok, {{one_for_one, 10, 10}, Processes}}.
 
