@@ -9,7 +9,6 @@
 #include <taglib/fileref.h>
 #include <taglib/tag.h>
 
-#include <boost/foreach.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
 
@@ -17,11 +16,9 @@
 #include <cstdio>
 #include <sstream>
 
-#include <netinet/in.h>
+#include <netinet/in.h> // for htonl etc
 
 using namespace std;
-using namespace boost;
-namespace bfs = boost::filesystem;
 
 #ifdef WIN32
 wstring fromUtf8(const string& i);
@@ -90,7 +87,7 @@ string scan_file(const char* path)
     TagLib::FileRef f(path);
     if (!f.isNull() && f.tag()) {
         TagLib::Tag *tag = f.tag();
-        int filesize = bfs::file_size(path);
+        int filesize = boost::filesystem::file_size(path);
         int bitrate = 0;
         int duration = 0;
         if (f.audioProperties()) {
@@ -107,8 +104,8 @@ string scan_file(const char* path)
         if (artist.length()==0 || track.length()==0) {
             return "{\"error\" : \"no tags\"}\n";
         }
-        string ext(toUtf8(bfs::extension(path)));
-        string mimetype = ext2mime(to_lower_copy(ext));
+        string ext(toUtf8(boost::filesystem::extension(path)));
+        string mimetype = ext2mime(boost::to_lower_copy(ext));
         // turn it into a url by prepending file://
         // because we pass all urls to curl:
         string urlpath = urlify( toUtf8(path) );
@@ -165,16 +162,13 @@ int main(int argc, char* argv[])
     {
         if(readn((unsigned char*)&len0,4)!=4) break;
         len = ntohl(len0);
-//        cerr << "Read 4 bytes, got: " << len << endl;
         readn((unsigned char*)&buffer, len);
         buffer[len]='\0';
-///        cerr << "Read filename: " << buffer << endl;
         string j = scan_file((const char*)&buffer);
-//        cerr << "Output " << j.length() << " bytes: " << j << endl;
         unsigned int l = htonl(j.length());
         writen((unsigned char*)&l,4);
-//        write(2, (char*)&l, 4);
         printf("%s", j.c_str());
+        cout.flush();
     }
 
 }

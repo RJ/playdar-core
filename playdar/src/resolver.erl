@@ -40,7 +40,7 @@ init([]) ->
     % and this one maps Source IDs to query pids
     Tid2= ets:new(sources, []),
     % Load the resolvers:
-    ResNames = [fake_resolver, fake_resolver2, lan_resolver],
+    ResNames = [fake_resolver, fake_resolver2, lan_resolver, library],
     lists:foreach(fun(M)-> M:start_link() end, ResNames),
     % Load script-resolvers:
     Scripts = [ "/home/rj/src/playdar/contrib/demo-script/demo-resolver.php" ],
@@ -121,12 +121,6 @@ code_change(_OldVsn, State, _Extra) ->
 
 %%% Internal functions
 
-min(A,B) ->
-    if 
-        A < B -> A;
-        true -> B
-    end.
-
 start_resolver_pipeline(Q, Qpid, Resolvers) ->
     start_resolver_pipeline(Q, Qpid, Resolvers, {-1, -1}).
 
@@ -142,7 +136,7 @@ start_resolver_pipeline(Q, Qpid, [H|Resolvers], {LastWeight, LastTime}) ->
                 LastWeight == H#resolver.weight ->
                     % same weight, dispatch immediately
                     (H#resolver.mod):resolve(H#resolver.pid, Q, Qpid),
-                    start_resolver_pipeline(Q, Qpid, Resolvers, {LastWeight, min(H#resolver.targettime, LastTime)});
+                    start_resolver_pipeline(Q, Qpid, Resolvers, {LastWeight, utils:min(H#resolver.targettime, LastTime)});
                 true ->
                     % dispatch after delay, save timer ref for possible cancellation if solved
                     {ok, Tref} = timer:apply_after(LastTime, H#resolver.mod, resolve, [H#resolver.pid, Q, Qpid]),

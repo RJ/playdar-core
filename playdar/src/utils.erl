@@ -1,5 +1,5 @@
 -module(utils).
--export([uuid_gen/0]).
+-export([uuid_gen/0, min/2, max/2]).
 -import(random).
 
 %% UUID Generation: http://github.com/travis/erlang-uuid/blob/master/uuid.erl
@@ -18,3 +18,16 @@ to_string(U) ->
 get_parts(<<TL:32, TM:16, THV:16, CSR:8, CSL:8, N:48>>) ->
     [TL, TM, THV, CSR, CSL, N].
 
+
+% min/max
+min(A,B) ->
+    if 
+        A < B -> A;
+        true -> B
+    end.
+
+max(A,B) ->
+    if 
+        A < B -> B;
+        true -> A
+    end.

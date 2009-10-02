@@ -1,4 +1,5 @@
--module(scanner).
+% taglib interface to external scanner binary
+-module(taglib_driver).
 -behaviour(gen_server).
 -export([start_link/1, parsefile/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -9,7 +10,7 @@
 start_link(BinPath) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [BinPath], []).
 
-parsefile(File) ->
+parsefile(File) when is_list(File) ->
     gen_server:call(?MODULE, {parsefile, File}).
 
 %%
@@ -19,10 +20,11 @@ init([Exe]) ->
     {ok, #state{port=Port}}.
 
 handle_call({parsefile, File}, _From, #state{port=Port} = State) ->
-    Port ! {self(), {command, File}},
+    port_command(Port, File),
     receive
         {Port, {data, Data}} ->
-            {reply, Data, State};
+            {struct, Tags} = mochijson2:decode(Data),
+            {reply, Tags, State};
         X -> {reply, X, State}
         after 1000 -> % if it takes this long, you have serious issues.
             {stop, port_timeout, State}
