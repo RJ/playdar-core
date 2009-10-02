@@ -24,7 +24,10 @@ http_req(Req) ->
             Artist = proplists:get_value("artist", Qs, ""),
             Album  = proplists:get_value("album", Qs, ""),
             Track  = proplists:get_value("track", Qs, ""),
-            Qid = utils:uuid_gen(),
+            Qid    = case proplists:get_value("qid", Qs) of
+                undefined -> utils:uuid_gen();
+                Str -> list_to_binary(Str)
+            end,
             Q = {struct,[
                     {<<"artist">>, list_to_binary(Artist)}, 
                     {<<"album">>,  list_to_binary(Album)}, 

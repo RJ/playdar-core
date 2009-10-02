@@ -96,7 +96,7 @@ render(Req, File, Vars) ->
     ok = erlydtl:compile(File, tpl_index),
     {ok, HtmlIO} =  tpl_index:render(Vars),
     Html = lists:flatten(HtmlIO),
-    Req:ok({"text/html",Html}).
+    Req:ok({"text/html",[{"Server", "Playdar"}],Html}).
 
 stream_result(Req, Ref) ->
     receive
@@ -106,12 +106,12 @@ stream_result(Req, Ref) ->
                 undefined -> "binary/unspecified";
                 X when is_list(X) -> X
             end,
-            Resp = Req:ok( { Mimetype, Headers, chunked } ),
+            Resp = Req:ok( { Mimetype, [{"Server", "Playdar"}|Headers], chunked } ),
             %io:format("Headers sent~n",[]),
             stream_result_body(Req, Resp, Ref)
             
         after 12000 ->
-            Req:ok({"text/plain", "Timeout on headers/initialising stream"})
+            Req:ok({"text/plain", [{"Server", "Playdar"}], "Timeout on headers/initialising stream"})
     end.
     
 stream_result_body(Req, Resp, Ref) ->
