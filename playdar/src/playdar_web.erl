@@ -38,18 +38,13 @@ loop(Req, DocRoot) ->
     
     case Path of
         "" -> 
-            Rlist = [ io_lib:format("resolver: <b>~s</b> ~w (~wms) pid: ~p mod: ~w<br/>",
-                                    [proplists:get_value(name, R),
-                                     proplists:get_value(weight, R),
-                                     proplists:get_value(targettime, R),
-                                     proplists:get_value(pid, R),
-                                     proplists:get_value(mod, R)])
-                      || R <- resolver:resolvers()],
-            
-            Msg = "<h1>Playdar</h1>Playdar-erlang is running<br/><hr/><br/>" ++
-                  Rlist,
-            
-            Req:ok({"text/html", Msg});
+            Resolvers = [ [{"mod", atom_to_list(proplists:get_value(mod, Pl))}|proplists:delete(mod,Pl)]
+                               || Pl <- resolver:resolvers() ],
+            Vars = [ {resolvers, Resolvers} ],
+            ok = erlydtl:compile(DocRoot ++ "/index.html", tpl_index),
+            {ok, HtmlIO} =  tpl_index:render(Vars),
+            Html = lists:flatten(HtmlIO),
+            Req:ok({"text/html",Html});
         
         % serving a file that was found by a query, based on SID:
         "sid/" ++ SidL ->

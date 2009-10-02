@@ -1,8 +1,27 @@
 <html>
 <head>
-<title>It Worked</title>
+<title>Playdar</title>
 </head>
 <body>
-MochiWeb running.
+<h1>Playdar is running</h2>
+
+<h3>Resolvers</h3>
+<table style="width:100%">
+<tr style="font-weight:bold">
+<td>Name</td>
+<td>Module</td>
+<td>Weight</td>
+<td>Target Time</td>
+</tr>
+{% for r in resolvers %}
+<tr style="background-color: {% cycle white,lightyellow %}">
+<td>{{ r.name }}</td>
+<td>{{ r.mod }} </td>
+<td>{{ r.weight }}</td>
+<td>{{ r.targettime }}</td>
+</tr>
+{% endfor %}
+</table>
+
 </body>
 </html>
