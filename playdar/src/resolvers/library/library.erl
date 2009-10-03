@@ -37,10 +37,10 @@ name(_Pid)              -> "Local Library".
 
 init([]) ->
     ok = mnesia:start(),
-    mnesia:wait_for_tables([file, ngram], 10000),
+    mnesia:wait_for_tables([file, ngram], 30000),
     try
-        Info = mnesia:table_info(file, all),
-        io:format("~w\n",[Info])
+        Info = mnesia:table_info(file, size),
+        io:format("Library contains ~w files\n",[Info])
     catch
         exit:_Why -> % because it doesnt exist yet?
             first_run();
@@ -54,6 +54,7 @@ init([]) ->
 
 
 handle_cast({resolve, Q, Qpid}, State) ->
+    io:format("library:resolver~n",[]),
     case Q of
         {struct, Mq} -> % Mq is a proplist
             Report = fun(Score, File) ->
@@ -73,7 +74,10 @@ handle_cast({resolve, Q, Qpid}, State) ->
             Art = proplists:get_value(<<"artist">>,Mq,<<"">>),
             Trk = proplists:get_value(<<"track">>,Mq,<<"">>),
             Alb = proplists:get_value(<<"album">>,Mq,<<"">>),
+            Now = now(),
             Files = search(clean(Art),clean(Alb),clean(Trk)),
+            Time = timer:now_diff(now(), Now),
+            io:format("Library:search took: ~wms~n",[Time/1000]),
             [ Report(Score, File) || {Score, File} <- Files ];
 
         _ -> io:format("Unhandled query type in library resolver~n",[])
@@ -134,6 +138,7 @@ handle_info({scanner, {file, File, Mtime, Tags}}, State) when is_list(Tags), is_
                         size    = proplists:get_value(<<"filesize">>, Tags, 0),
                         trackno = proplists:get_value(<<"trackno">>, Tags, 0),
                         bitrate = proplists:get_value(<<"bitrate">>, Tags, 0),
+                        duration= proplists:get_value(<<"duration">>, Tags, 0),
                         mtime   = Mtime
                      },
             mnesia:dirty_write(F),
