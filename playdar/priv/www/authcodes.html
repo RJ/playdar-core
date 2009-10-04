@@ -1,0 +1,9 @@
+{% include "header.inc.html" %}
+<h2>List of Authenticated Clients</h2>
+
+{% for c in codes %}
+<a onclick="return confirm('Revoke this auth code?');" href="/authcodes?revoke={{c.code}}">{{c.code}}</a> / {{c.name}} / {{c.website}} <br/>
+{% endfor %}
+
+</body>
+</html>

@@ -154,6 +154,22 @@ loop(Req, DocRoot) ->
                     render(Req, DocRoot ++ "/query.html", Vars)
             end;
         
+        "authcodes" ->
+            Qs = Req:parse_qs(),
+            case proplists:get_value("revoke",Qs) of
+                undefined ->
+                    Codes = [ [{code, Code}|Props] || {Code, Props} <- auth:all() ],
+                    render(Req, DocRoot ++ "/authcodes.html", [{codes, Codes}]);
+                Code ->
+                    auth:revoke(list_to_binary(Code)),
+                    Req:respond({302, [{"Location", "/authcodes"}], <<"">>})
+            end;
+
+        % serve any file under /static/ verbatim
+        "static/" ++ StaticFile ->
+        io:format("static:~s~n",[StaticFile]),
+            Req:serve_file("static/" ++ StaticFile, DocRoot);
+
         % hand off dynamically:
         _ -> 
             case http_registry:get_handler(Req:get(path)) of
