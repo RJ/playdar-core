@@ -4,9 +4,10 @@
 http_req(Req) ->
     Qs = Req:parse_qs(),
     M = proplists:get_value("method", Qs),
+    Auth = auth:check_auth(proplists:get_value("auth",Qs,"")),
     case M of
         "stat" ->
-            case auth:check_auth(proplists:get_value("auth",Qs,"")) of
+            case Auth of
                 Props when is_list(Props) ->
                     R = {struct,[   
                             {"name", <<"playdar">>},
@@ -30,7 +31,13 @@ http_req(Req) ->
                     respond(Req, R)
             end;
 
-        
+        _ -> http_req_authed(Req, M, Qs, Auth)
+
+    end.
+    
+
+http_req_authed(Req, Method, Qs, _Auth) ->
+    case Method of
         "resolve" ->
             Artist = proplists:get_value("artist", Qs, ""),
             Album  = proplists:get_value("album", Qs, ""),
@@ -72,9 +79,10 @@ http_req(Req) ->
              end;
          
         _ ->
-            Req:ok({"text/plain", io_lib:format("Method not found: ~p~n", [M])})
+            Req:not_found()
     end.
-    
+
+% responds with json
 respond(Req, R) ->
     Qs = Req:parse_qs(),
     case proplists:get_value("jsonp", Qs) of
