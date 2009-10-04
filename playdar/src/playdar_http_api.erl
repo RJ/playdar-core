@@ -6,19 +6,30 @@ http_req(Req) ->
     M = proplists:get_value("method", Qs),
     case M of
         "stat" ->
-            R = {struct,[   
-                    {"name", <<"playdar">>},
-                    {"version", <<"0.1.0">>},
-                    {"authenticated", true},
-                    {"hostname", <<"TODO">>},
-                    {"capabilities", {struct,[
-                        {"local", {struct,[
-                            {"plugin", <<"Local Library">>},
-                            {"description", <<"Blah">>}
-                        ]}}
-                    ]}}
-                ]},
-            respond(Req, R);
+            case auth:check_auth(proplists:get_value("auth",Qs,"")) of
+                Props when is_list(Props) ->
+                    R = {struct,[   
+                            {"name", <<"playdar">>},
+                            {"version", <<"0.1.0">>},
+                            {"authenticated", true},
+                            {"hostname", <<"TODO">>},
+                            {"capabilities", {struct,[
+                                {"local", {struct,[
+                                    {"plugin", <<"Local Library">>},
+                                    {"description", <<"Blah">>}
+                                ]}}
+                            ]}}
+                        ]},
+                    respond(Req, R);
+                undefined ->
+                    R = {struct, [
+                            {"name", <<"playdar">>},
+                            {"version", <<"0.1.0">>},
+                            {"authenticated", false}
+                        ]},
+                    respond(Req, R)
+            end;
+
         
         "resolve" ->
             Artist = proplists:get_value("artist", Qs, ""),

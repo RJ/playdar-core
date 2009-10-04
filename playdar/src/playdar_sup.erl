@@ -49,6 +49,10 @@ init([]) ->
     Web         = { playdar_web,
                     {playdar_web, start, [WebConfig]},
                     permanent, 5000, worker, dynamic},
+
+    Auth        = { auth,
+                    {auth, start_link, []},
+                    permanent, 5000, worker, []},
     
     ResolverSup = { resolver_sup,
                     {resolver_sup, start_link, []},
@@ -63,7 +67,7 @@ init([]) ->
                     permanent, 1000, worker, [] },
 
 
-    Processes = [Streamer, ResolverSup, HttpReg, Web],
+    Processes = [Streamer, ResolverSup, HttpReg, Auth, Web],
 
     {ok, {{one_for_one, 10, 10}, Processes}}.
 

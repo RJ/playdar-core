@@ -31,9 +31,10 @@ stop() ->
     mochiweb_http:stop(?MODULE).
 
 loop(Req, DocRoot) ->
+    % TODO filter non /sid/ reqs unless from localhost
 	{R1,R2,R3} = now(),
 	random:seed(R1,R2,R3),
-    io:format("GET ~p~n", [Req:get(raw_path)]),
+    io:format("~w ~p~n", [Req:get(method), Req:get(raw_path)]),
     "/" ++ Path = Req:get(path),
     
     case Path of
@@ -55,6 +56,80 @@ loop(Req, DocRoot) ->
                     StreamFun = stream_registry:get_streamer(A, self(), Ref),
                     StreamFun(),
                     stream_result(Req, Ref)
+            end;
+
+        "auth_1/" ->
+            Qs = Req:parse_qs(),
+            Required = ["website", "name" ],
+            case lists:member(undefined, [ proplists:get_value(R, Qs) ||
+                                           R <- Required]) of
+                true ->
+                    Req:not_found();
+
+                false ->
+                    Ftok = auth:gen_formtoken(),
+                    case proplists:get_value("json", Qs) of 
+                        undefined ->
+                            FormVars= [
+                                       {"receiverurl", proplists:get_value("receiverurl",Qs)},
+                                       {"formtoken", Ftok},
+                                       {"website", proplists:get_value("website", Qs)},
+                                       {"name", proplists:get_value("name", Qs)}
+                                      ],
+                            render(Req, DocRoot ++ "/auth.html", [{formvars, FormVars}]);
+
+                        _  ->
+                            Resp = mochijson2:encode({struct, [{<<"formtoken">>,list_to_binary(Ftok)}]}),
+                            Req:ok({"text/javascript; charset=utf-8",[],Resp})
+                    end
+            end;
+            
+
+        "auth_2/" ->
+            Qs = Req:parse_post(),
+            io:format("~p~n", [Qs]),
+            Required = ["website", "name", "formtoken"],
+            AllPresent = not lists:member(undefined, [ proplists:get_value(R, Qs) ||
+                                                  R <- Required]),
+            FormTokOk = (ok == auth:consume_formtoken(proplists:get_value("formtoken", Qs))),
+            io:format("AllPressent ~w formtok ~w~n", [AllPresent, FormTokOk]),
+            if
+                AllPresent and FormTokOk ->
+                    % create the entry in the auth db:
+                    AuthCode = utils:uuid_gen(),
+                    % m_pauth->create_new(tok, req.postvar("website"), req.postvar("name"), req.useragent() );
+                    auth:create(AuthCode, [ {website, proplists:get_value("website",Qs)},
+                                            {name, proplists:get_value("name",Qs)}
+                                          ]),
+                    case proplists:get_value("receiverurl",Qs,"") of
+                        "" ->
+                            case proplists:get_value("json", Qs) of 
+                                undefined ->
+                                    Vars = [    {website,proplists:get_value("website",Qs)},
+                                                {name,proplists:get_value("name",Qs)},
+                                                {authcode, AuthCode}
+                                           ],
+                                    render(Req, DocRoot ++ "/auth.na.html", Vars);
+                                _ ->
+                                    Resp = mochijson2:encode({struct, [{<<"authtoken">>,AuthCode}]}),
+                                    Req:ok({"text/javascript; charset=utf-8",[],Resp})
+                            end;
+
+                        RecUrl ->
+                            % verify RecUrl doesnt contain newlines
+                            AuthStr = binary_to_list(AuthCode),
+                            Url = case lists:member($?, RecUrl) of
+                                true ->
+                                    RecUrl ++ "&authtoken=" ++ AuthStr ++ "#" ++ AuthStr;
+                                false ->
+                                    RecUrl ++ "?authtoken=" ++ AuthStr ++ "#" ++ AuthStr
+                            end,
+                            io:format("Redirect: ~s~n", [Url]),
+                            Req:respond({301, [{"Location", Url}], <<"">>})
+                    end;
+
+                true ->
+                    Req:not_found()
             end;
 
         "queries" ->
