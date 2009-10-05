@@ -85,7 +85,7 @@ handle_cast({add_results, Results}, State) ->
                 A % already has a sid
         end
     end,
-    io:format("qry:add_results <<\"~s\">> ~w~n",[State#state.qid, length(Results)]),
+    %io:format("qry:add_results <<\"~s\">> ~w~n",[State#state.qid, length(Results)]),
     Results1 = State#state.results ++ 
         [   begin Item = {struct, Uuify(R)},
                   lists:foreach(fun(Cb)->Cb(Item)end,State#state.callbacks),

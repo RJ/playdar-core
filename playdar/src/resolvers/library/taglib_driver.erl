@@ -11,7 +11,7 @@ start_link(BinPath) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [BinPath], []).
 
 parsefile(File) when is_list(File) ->
-    gen_server:call(?MODULE, {parsefile, File}).
+    gen_server:call(?MODULE, {parsefile, File}, infinity).
 
 %%
 
@@ -20,14 +20,13 @@ init([Exe]) ->
     {ok, #state{port=Port}}.
 
 handle_call({parsefile, File}, _From, #state{port=Port} = State) ->
+    % TODO: if this file crashes the scanner binary, trap it here
+    %       return "no tags" then restart the binary
     port_command(Port, File),
     receive
         {Port, {data, Data}} ->
             {struct, Tags} = mochijson2:decode(Data),
-            {reply, Tags, State};
-        X -> {reply, X, State}
-        after 1000 -> % if it takes this long, you have serious issues.
-            {stop, port_timeout, State}
+            {reply, Tags, State}
     end.
 
 handle_cast(_Msg, State) ->    {noreply, State}.

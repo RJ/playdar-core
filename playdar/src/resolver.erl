@@ -48,7 +48,7 @@ init([]) ->
     % and this one maps Source IDs to query pids
     Tid2= ets:new(sources, []),
     % Load the resolvers:
-    ResNames = [fake_resolver, fake_resolver2, lan_resolver, library],
+    ResNames = [fake_resolver, fake_resolver2, lan_resolver, library_dets],
     ResSpecs = [ {Mod, 
                   {Mod, start_link, []}, 
                   transient, 5, worker, [Mod]} 

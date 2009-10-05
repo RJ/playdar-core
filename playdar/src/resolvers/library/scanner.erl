@@ -7,6 +7,7 @@ scan_dir(Dir, Pid) ->
     Pid ! {scanner, finished}.
 
 do_scan_dir(Dir, Pid) ->
+    io:format("Scanning DIR: ~s~n", [Dir]),
     scan(filelib:wildcard(Dir ++ "/*"), Pid).
 
 scan([], _Pid)    -> ok;
@@ -23,12 +24,4 @@ scan([H|T], Pid) ->
 handle_file(F, Mtime, Pid) ->
     L = taglib_driver:parsefile(F),
     Pid ! {scanner, {file, F, Mtime, L}}.
-%%     case proplists:get_value(<<"error">>, L) of
-%%         undefined -> % found tags:
-%%             Art     = proplists:get_value(<<"artist">>, L, ""),
-%%             Trk     = proplists:get_value(<<"track">>, L, ""),
-%%             io:format("TAGS  ~s\t~s - ~s~n",[F, Art, Trk]);
-%% 
-%%         Error ->
-%%             io:format("ERROR ~s\t~s~n",[F, Error])
-%%     end.
+
