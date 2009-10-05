@@ -33,6 +33,7 @@ max(A,B) ->
     end.
 
 % list_agg([a,a,a,b,b,c]) -> [{a,3}, {b,2}, {c,1}]
+list_agg([])        -> [];
 list_agg([H|T])     -> list_agg(T, [{H,1}]).
 list_agg([], Agg)   -> Agg;
 list_agg([H|T], [{Ah,An}|At])     when H == Ah  -> list_agg(T, [{Ah,An+1}|At]);
