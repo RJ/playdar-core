@@ -67,7 +67,7 @@ loop(Req, DocRoot) ->
                     Req:not_found();
 
                 false ->
-                    Ftok = auth:gen_formtoken(),
+                    Ftok = playdar_auth:gen_formtoken(),
                     case proplists:get_value("json", Qs) of 
                         undefined ->
                             FormVars= [
