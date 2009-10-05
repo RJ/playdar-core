@@ -1,4 +1,4 @@
--module(auth).
+-module(playdar_auth).
 -behaviour(gen_server).
 
 %% API

@@ -91,14 +91,14 @@ loop(Req, DocRoot) ->
             Required = ["website", "name", "formtoken"],
             AllPresent = not lists:member(undefined, [ proplists:get_value(R, Qs) ||
                                                   R <- Required]),
-            FormTokOk = (ok == auth:consume_formtoken(proplists:get_value("formtoken", Qs))),
+            FormTokOk = (ok == playdar_auth:consume_formtoken(proplists:get_value("formtoken", Qs))),
             io:format("AllPressent ~w formtok ~w~n", [AllPresent, FormTokOk]),
             if
                 AllPresent and FormTokOk ->
                     % create the entry in the auth db:
                     AuthCode = utils:uuid_gen(),
                     % m_pauth->create_new(tok, req.postvar("website"), req.postvar("name"), req.useragent() );
-                    auth:create(AuthCode, [ {website, proplists:get_value("website",Qs)},
+                    playdar_auth:create(AuthCode, [ {website, proplists:get_value("website",Qs)},
                                             {name, proplists:get_value("name",Qs)}
                                           ]),
                     case proplists:get_value("receiverurl",Qs,"") of
@@ -158,10 +158,10 @@ loop(Req, DocRoot) ->
             Qs = Req:parse_qs(),
             case proplists:get_value("revoke",Qs) of
                 undefined ->
-                    Codes = [ [{code, Code}|Props] || {Code, Props} <- auth:all() ],
+                    Codes = [ [{code, Code}|Props] || {Code, Props} <- playdar_auth:all() ],
                     render(Req, DocRoot ++ "/authcodes.html", [{codes, Codes}]);
                 Code ->
-                    auth:revoke(list_to_binary(Code)),
+                    playdar_auth:revoke(list_to_binary(Code)),
                     Req:respond({302, [{"Location", "/authcodes"}], <<"">>})
             end;
 

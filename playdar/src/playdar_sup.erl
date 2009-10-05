@@ -50,8 +50,8 @@ init([]) ->
                     {playdar_web, start, [WebConfig]},
                     permanent, 5000, worker, dynamic},
 
-    Auth        = { auth,
-                    {auth, start_link, []},
+    Auth        = { playdar_auth,
+                    {playdar_auth, start_link, []},
                     permanent, 5000, worker, []},
     
     ResolverSup = { resolver_sup,

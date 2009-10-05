@@ -4,7 +4,7 @@
 http_req(Req) ->
     Qs = Req:parse_qs(),
     M = proplists:get_value("method", Qs),
-    Auth = auth:check_auth(proplists:get_value("auth",Qs,"")),
+    Auth = playdar_auth:check_auth(proplists:get_value("auth",Qs,"")),
     case M of
         "stat" ->
             case Auth of
@@ -14,12 +14,12 @@ http_req(Req) ->
                             {"version", <<"0.1.0">>},
                             {"authenticated", true},
                             {"hostname", <<"TODO">>},
-                            {"capabilities", {struct,[
-                                {"local", {struct,[
-                                    {"plugin", <<"Local Library">>},
-                                    {"description", <<"Blah">>}
-                                ]}}
-                            ]}}
+                            {"capabilities", {struct,[]}}
+                                %{"local", {struct,[
+                                %    {"plugin", <<"Local Library">>},
+                                %    {"description", <<"Blah">>}
+                                %]}}
+                            %]}}
                         ]},
                     respond(Req, R);
                 undefined ->
