@@ -1,5 +1,5 @@
 -module(fake_resolver2).
-
+-include("playdar.hrl").
 -behaviour(gen_server).
 -behaviour(playdar_resolver).
 

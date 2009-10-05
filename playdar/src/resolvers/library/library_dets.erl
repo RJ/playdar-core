@@ -1,4 +1,6 @@
 -module(library_dets).
+
+-include("playdar.hrl").
 -behaviour(gen_server).
 -behaviour(playdar_resolver).
 
@@ -27,11 +29,12 @@ name(_Pid)              -> "Local Library using DETS".
 init([]) ->
     {ok, Ndb} = dets:open_file("ngrams.dets",[{type, duplicate_bag}]),
     {ok, Fdb} = dets:open_file("files.dets", [{type, set}]),
+    ?LOG(info, "Library index contains ~w files", 
+               [proplists:get_value(size, dets:info(Fdb), -1)]),
     resolver:add_resolver(?MODULE, name(self()), weight(self()), targettime(self()), self()),
     {ok, #state{scanner=undefined, ndb=Ndb, fdb=Fdb}}.
 
 handle_cast({resolve, Q, Qpid}, State) ->
-    %io:format("library:resolver~n",[]),
     case Q of
         {struct, Mq} -> % Mq is a proplist
             Report = fun({Props, Score}) ->
@@ -54,12 +57,11 @@ handle_cast({resolve, Q, Qpid}, State) ->
             Alb = proplists:get_value(<<"album">>,Mq,<<"">>),
             Now = now(),
             Files = search(clean(Art),clean(Alb),clean(Trk),State),
-            %io:format("search() ret: ~p~n", [Files]),
             Time = timer:now_diff(now(), Now),
-            io:format("Library_dets search took: ~wms\t~s ~s~n",[Time/1000, Art, Trk]),
+            ?LOG(debug, "Library_dets search took: ~wms for ~s - ~s",[Time/1000, Art, Trk]),
             lists:foreach(Report, Files);
 
-        _ -> io:format("Unhandled query type in library resolver~n",[])
+        _ -> noop %Unhandled query type
     end,
     {noreply, State};
 
@@ -112,7 +114,6 @@ handle_info({scanner, {file, File, Mtime, Tags}}, State) when is_list(Tags), is_
             ok = dets:insert(State#state.ndb, Artist_Ngrams),
             ok = dets:insert(State#state.ndb, Track_Ngrams);
         _Err ->
-            io:format("Could not read file: ~s~n",[File]),
             noop
     end,
 
@@ -155,7 +156,6 @@ search(Art,_Alb,Trk,State) ->
            lists:sort(lists:flatten(R))
          ))
         ),10),
-    %io:format("Candidates: ~p~n", [C]),
     % now we have a list of candidates, C: [ {'file path atom', Score} .. ]
     % first, gather all the candidate file records
     Files = [ case dets:lookup(State#state.fdb, FileId) of

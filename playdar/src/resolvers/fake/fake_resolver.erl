@@ -1,7 +1,7 @@
 % this one just matches artist:metallica to a hardcoded path.
-
 -module(fake_resolver).
 
+-include("playdar.hrl").
 -behaviour(gen_server).
 -behaviour(playdar_resolver).
 
@@ -46,9 +46,9 @@ handle_cast({resolve, Q, Qpid}, State) ->
                                 
                             ]},
                     qry:add_result(Qpid, Rep);
-                _ -> io:format("No results from fake_resolver~n",[])
+                _ -> noop
             end;
-        _ -> io:format("Unhandled query type in fake_resolver~n",[])
+        _ -> noop
     end,
     {noreply, State}.
 

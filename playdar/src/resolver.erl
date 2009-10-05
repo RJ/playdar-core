@@ -1,7 +1,7 @@
 -module(resolver).
 
 -behaviour(gen_server).
-
+-include("playdar.hrl").
 %% API
 -export([start_link/0, dispatch/2, dispatch/3, qid2pid/1, sid2pid/1, 
          resolvers/0, register_sid/2, add_resolver/5, resolver_pid/1,
@@ -122,15 +122,15 @@ handle_call({dispatch, Q, Qid, Cbs}, _From, State) ->
 
 handle_cast({add_resolver,Mod, Name, Weight, TargetTime, Pid}, State) ->
     link(Pid),
-    io:format("add_resolver: Mod:~w\tName:'~s'\tWeight:~w\tTT:~w\tPid:~w~n",
-                [Mod, Name, Weight, TargetTime, Pid]),
+    ?LOG(info, "add_resolver: ~w '~s' Weight:~w TT:~w Pid:~w",
+               [Mod, Name, Weight, TargetTime, Pid]),
     R = #resolver{mod=Mod, name=Name, weight=Weight, targettime=TargetTime, pid=Pid},
     % 4 is the pos in the #resolver tuple for "weight":
     Resolvers = lists:reverse(lists:keysort(4, [R|State#state.resolvers])),
     {noreply, State#state{resolvers=Resolvers}};
 
 handle_cast({register_sid, Sid, Qpid}, State) ->
-    %io:format("Register sid: ~p to qpid: ~p~n",[Sid, Qpid]),
+    ?LOG(debug, "Register sid: ~p to qpid: ~p",[Sid, Qpid]),
     ets:insert(State#state.sources, {{sid, Sid}, Qpid}),
     {noreply, State}.
 

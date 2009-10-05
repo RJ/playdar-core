@@ -4,6 +4,7 @@
 % will start arriving.
 -module(stream_registry).
 
+-include("playdar.hrl").
 -behaviour(gen_server).
 
 %% API
@@ -40,13 +41,16 @@ handle_call({get_streamer, A, Pid, Ref}, _From, State) ->
             [Proto|_Rest] = string:tokens(Url, ":"),
             case ets:lookup(State#state.db, Proto) of
                 [{_,Fun}] ->  
-                F = fun() -> Fun({struct, A}, Pid, Ref) end,
-                {reply, F, State}
+                    F = fun() -> Fun({struct, A}, Pid, Ref) end,
+                    {reply, F, State};
+                _ ->
+                    ?LOG(warning, "No stream handler registed for '~s'", [Proto]),
+                    {reply, undefined, State}
             end
     end.
 
 handle_cast({register_handler, Proto, Fun}, State) ->
-    io:format("stream_registry handler added for protocol: ~s~n", [Proto]),
+    ?LOG(info, "handler added for protocol: ~s", [Proto]),
     ets:insert(State#state.db, {Proto, Fun}),
     {noreply, State}.
 

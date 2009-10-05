@@ -1,5 +1,6 @@
 -module(file_reader).
 
+-include("playdar.hrl").
 -include_lib("kernel/include/file.hrl").
 
 -export([start_link/3]).
@@ -10,6 +11,7 @@ start_link(A, Pid, Ref) ->
 % starts sending file data to Pid
 run({struct, A}, Pid, Ref) ->
     "file://"++Path = binary_to_list(proplists:get_value(<<"url">>, A)),
+    ?LOG(info, "Serving file ~s", [Path]),
     case file:open(Path, [read, binary]) of
         {ok, Io} ->
             Mimetype=proplists:get_value(<<"mimetype">>, A, <<"binary/unknown">>),
@@ -23,6 +25,7 @@ run({struct, A}, Pid, Ref) ->
             ok;
         _ ->
             % error opening file
+            ?LOG(warning, "Error opening file ~s", [Path]),
             Pid ! {Ref, error, could_not_open_file},
             error
     end.

@@ -1,5 +1,6 @@
 -module(http_reader).
 
+-include("playdar.hrl").
 -include_lib("kernel/include/file.hrl").
 
 -export([start_link/3]).
@@ -10,7 +11,7 @@ start_link(A, Pid, Ref) ->
 % starts sending data to Pid
 run({struct, A}, Pid, Ref) ->
     Url = binary_to_list(proplists:get_value(<<"url">>, A)),
-    
+    ?LOG(info, "Serving stream: ~s", [Url]),
     {ok, Id} = http:request(get, {Url, []}, [], 
                                [{sync, false}, 
                                 {stream, self}, 
@@ -19,7 +20,6 @@ run({struct, A}, Pid, Ref) ->
     receive
 
         {http, {Id, stream_start, Headers}} ->
-            io:format("Headers rcvd: ~p~n",[Headers]),
             % snag the content-length and content-type headers:
             Headers1 = [ { "content-type", 
                            proplists:get_value("content-type", Headers, 
@@ -32,14 +32,11 @@ run({struct, A}, Pid, Ref) ->
             start_streaming(Id, Pid, Ref);
             
         {http, {Id, error, Reason}} ->
-            io:format("HTTP req fail~n",[]),
-            Pid ! {Ref, error, Reason};
-            
-        XXX ->
-            io:format("Rvd: ~p~n", [XXX]), ok
+            ?LOG(warning, "HTTP req failed for ~s",[Url]),
+            Pid ! {Ref, error, Reason}
             
     after 10000 ->
-            io:format("HTTP timeout on headers~n",[]),
+            ?LOG(warning, "HTTP timeout on receiving headers for ~s",[Url]),
             Pid ! {Ref, error, timeout}
     end.
     

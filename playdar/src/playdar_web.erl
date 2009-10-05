@@ -4,9 +4,8 @@
 %% @doc Web server for playdar.
 
 -module(playdar_web).
--author('author <author@example.com>').
--import(random).
 -export([start/1, stop/0, loop/2]).
+-include("playdar.hrl").
 
 %% External API
 
@@ -23,7 +22,6 @@ start(Options) ->
                     {loop, Loop}
                     | Options3
                 ],
-    %io:format("~p~n",[MochiOpts]),
     mochiweb_http:start(MochiOpts).
                 
 
@@ -34,9 +32,10 @@ loop(Req, DocRoot) ->
     % TODO filter non /sid/ reqs unless from localhost
 	{R1,R2,R3} = now(),
 	random:seed(R1,R2,R3),
-    io:format("~w ~p~n", [Req:get(method), Req:get(raw_path)]),
-    "/" ++ Path = Req:get(path),
+    ?LOG(info, "~s ~s", [string:to_upper(atom_to_list(Req:get(method))),
+                         Req:get(raw_path)]),
     
+    "/" ++ Path = Req:get(path),
     case Path of
         "" -> 
             Resolvers = [ [{"mod", atom_to_list(proplists:get_value(mod, Pl))}|proplists:delete(mod,Pl)]

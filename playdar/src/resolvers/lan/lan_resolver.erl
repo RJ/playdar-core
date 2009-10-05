@@ -3,6 +3,7 @@
 
 -module(lan_resolver).
 
+-include("playdar.hrl").
 -behaviour(gen_server).
 -behaviour(playdar_resolver).
 
@@ -58,7 +59,7 @@ handle_cast({resolve, Q, Qpid}, State) ->
 	end;
  
 handle_cast({send_response, A, Qid, Ip, Port}, State) ->
-    %io:format("lan sending response: ~w ~w ~w ~w~n", [A, Qid, Ip, Port]),
+    ?LOG(debug, "sending response for qry ~s to ~w", [Qid, Ip]),
     {struct, Parts} = A,
     Msg = {struct, [    {<<"_msgtype">>, <<"result">>},
                         {<<"qid">>, Qid},
@@ -69,7 +70,7 @@ handle_cast({send_response, A, Qid, Ip, Port}, State) ->
     {noreply, State}.
 
 handle_info({udp, _Socket, {A,B,C,D}=Ip, _InPortNo, Packet}, State) ->
-    io:format("RCVD: ~p~n", [Packet]),
+    ?LOG(debug, "received msg: ~s", [Packet]),
     {struct, L} = mochijson2:decode(Packet),
     case proplists:get_value(<<"_msgtype">>,L) of
         <<"result">> ->
