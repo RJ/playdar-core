@@ -37,7 +37,7 @@ init([]) ->
 handle_cast({resolve, Q, Qpid}, State) ->
     case Q of
         {struct, Mq} -> % Mq is a proplist
-            {ok, Hostname} = application:get_env(playdar, hostname),
+            {ok, Hostname} = application:get_env(playdar, name),
             Report = fun({Props, Score}) ->
                 Rep =   {struct, [
                                 {<<"artist">>, proplists:get_value(artist, Props)},

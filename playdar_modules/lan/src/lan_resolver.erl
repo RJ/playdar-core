@@ -14,8 +14,10 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
      terminate/2, code_change/3]).
 
--record(state, {sock, seenqids}).
--define(BROADCAST, {239,255,0,1}).
+-record(state, {sock, seenqids, broadcast, port}).
+
+-define(BROADCAST, {239,255,0,1}). % default, can be changed in config
+-define(PORT, 60210). % can be changed in config
 
 %% API
 start_link()            -> gen_server:start_link(?MODULE, [], []).
@@ -38,7 +40,11 @@ init([]) ->
                                      {reuseaddr, true},{ip, ?BROADCAST}, 
                                      {add_membership, {?BROADCAST, LAddr}}]),
     resolver:add_resolver(?MODULE, name(self()), weight(self()), targettime(self()), self()),
-    {ok, #state{sock=Sock, seenqids=SQ}}.
+    {ok, #state{sock=Sock, 
+                seenqids=SQ, 
+                broadcast=?CONFVAL({lan,broadcast},?BROADCAST),
+                port=?CONFVAL({lan,port},?BROADCAST)
+               }}.
 
 handle_call(_Request, _From, State) ->
     Reply = ok,
@@ -54,7 +60,7 @@ handle_cast({resolve, Q, Qpid}, State) ->
 		_ ->
 			ets:insert(State#state.seenqids, {Qid,true}),
 			Msg = {struct, [ {<<"_msgtype">>, <<"rq">>},{<<"qid">>,Qid} | Parts ]},
-			gen_udp:send(State#state.sock, ?BROADCAST, 60210, mochijson2:encode(Msg)),
+			gen_udp:send(State#state.sock, State#state.broadcast, State#state.port, mochijson2:encode(Msg)),
 			{noreply, State}
 	end;
  
@@ -101,7 +107,7 @@ handle_info({udp, _Socket, {A,B,C,D}=Ip, _InPortNo, Packet}, State) ->
                 _ ->           
                     ets:insert(State#state.seenqids, {Qid,true}),
                     This = self(),
-                    Cbs = [ fun(Ans)-> ?MODULE:send_response(This, Ans, Qid, Ip, 60210) end ],
+                    Cbs = [ fun(Ans)-> ?MODULE:send_response(This, Ans, Qid, Ip, State#state.port) end ],
                     resolver:dispatch({struct,L}, Qid, Cbs),
                     {noreply, State}
             end;

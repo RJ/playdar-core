@@ -2,7 +2,7 @@
 
 -module(playdar_sup).
 -author('author <author@example.com>').
-
+-include("playdar.hrl").
 -behaviour(supervisor).
 
 %% External exports
@@ -40,13 +40,10 @@ upgrade() ->
 init([]) ->
     inets:start(),
     application:start(crypto), % it isn't started automatically on windows?
-    Ip = case os:getenv("MOCHIWEB_IP") of false -> "0.0.0.0"; Any -> Any end,   
-    WebConfig = [
-         {ip, Ip},
-                 {port, 60210},
-                 {docroot, playdar_deps:local_path(["priv", "www"])}
-    ],
-    ok = playdar_config:load(),
+    ok = playdar_config:load(get_etc_dir()),
+    DefaultWebConfig = [{port, 60210}, {max_conns, 100}, {ip, "0.0.0.0"}, {docroot, playdar_deps:local_path(["priv", "www"])}],
+    WebConfig = ?CONFVAL(web, DefaultWebConfig),
+    io:format("WebConfig = ~p~n", [WebConfig]),
     % Specs:
     Web         = { playdar_web,
                     {playdar_web, start, [WebConfig]},
@@ -77,5 +74,15 @@ init([]) ->
 
     {ok, {{one_for_one, 10, 10}, Processes}}.
 
+% gets dir with playdar config files in
+get_etc_dir() ->
+    case os:getenv("PLAYDAR_ETC") of
+        false -> "./etc"; % TODO guess sensible default, per OS etc.
+        Dir -> 
+            case filelib:is_dir(Dir) of
+                true -> Dir;
+                false -> exit("No such etc directory")
+            end
+    end.
 
-
+    

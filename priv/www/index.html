@@ -16,8 +16,14 @@
 </tr>
 {% endfor %}
 </table>
-<h3>Protocols Registered</h3>
+
+<h3>Protocols</h3>
 {% for p in protocols %}
+{{p}}
+{% endfor %}
+
+<h3>HTTP Paths</h3>
+{% for p in http_paths %}
 {{p}}
 {% endfor %}
 

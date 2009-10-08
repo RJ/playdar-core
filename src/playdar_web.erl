@@ -41,7 +41,9 @@ loop(Req, DocRoot) ->
             Resolvers = [ [{"mod", atom_to_list(proplists:get_value(mod, Pl))}|proplists:delete(mod,Pl)]
                                || Pl <- resolver:resolvers() ],
             Vars = [ {resolvers, Resolvers}, 
-                     {protocols, playdar_reader_registry:get_all()} ],
+                     {protocols, playdar_reader_registry:get_all()},
+                     {http_paths, http_registry:get_all()}
+                   ],
             render(Req, DocRoot ++ "/index.html", Vars);
         
         % serving a file that was found by a query, based on SID:
