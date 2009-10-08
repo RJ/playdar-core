@@ -30,7 +30,9 @@ loop(Req, DocRoot) ->
     % reqs from elsewhere are only allowed to stream.
     % this presumes they did the resolving using lan plugin or something.
     case Req:get(peer) of
-        "127.0.0.1" -> loop1(Req, DocRoot);
+        "127.0.0.1"         -> loop1(Req, DocRoot);
+        "::1"               -> loop1(Req, DocRoot);
+        "0:0:0:0:0:0:0:1"   -> loop1(Req, DocRoot);
         _ ->
             case Req:get(path) of
                 "/sid/" ++ _ -> 
