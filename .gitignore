@@ -1,6 +1,8 @@
 *~
 *.swp
-*.beam
 *.dets
-/playdar/ebin
-/playdar/doc
+/ebin
+/doc
+/auth.db
+/deps/erlydtl/src/erlydtl/erlydtl_parser.erl
+.DS_Store
