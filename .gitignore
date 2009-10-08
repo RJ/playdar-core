@@ -1,7 +1,7 @@
 *~
 *.swp
 *.dets
-/ebin
+ebin
 /doc
 /auth.db
 /deps/erlydtl/src/erlydtl/erlydtl_parser.erl
