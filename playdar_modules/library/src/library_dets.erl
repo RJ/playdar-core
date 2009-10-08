@@ -5,7 +5,7 @@
 -behaviour(playdar_resolver).
 
 %% API
--export([start_link/0, resolve/2, weight/1, targettime/1, name/1, localonly/1]).
+-export([start_link/0, resolve/2, weight/1, targettime/1, name/1, localonly/1, file_changed/2]).
 -export([dump_library/1]).
 -export([scan/2, stats/1, add_file/5, sync/1 ]).
 
@@ -13,12 +13,13 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% Records
--record(state, {scanner, ndb, fdb, customname}).
+-record(state, {scanner, ndb, fdb, customname, fswpid}).
 
 %%
 
 start_link()            -> gen_server:start_link(?MODULE, [], []).
 scan(Pid, Dir)          -> gen_server:call(Pid, {scan, Dir}, infinity).
+file_changed(Pid, File) -> gen_server:call(Pid, {scan_file, File}, infinity).
 
 add_file(Pid, F, Mtime, Size, L) -> gen_server:call(Pid, {add_file, F, Mtime, Size, L}, 60000).
 sync(Pid)               -> gen_server:cast(Pid, sync).
@@ -32,6 +33,9 @@ localonly(_Pid)			-> false.
 stats(Pid)              -> gen_server:call(Pid, stats).
 
 dump_library(Pid)       -> gen_server:call(Pid, dump_library, 60000).
+
+music_dirs()            -> [].
+
 %%
 
 % Non-standard init, when used by proxy for another type of library:
@@ -53,7 +57,8 @@ init([]) ->
     % start the scanner (kind of a hack, but deadlock if we do it in init here):
     self() ! start_scanner,        
     playdar_resolver:add_resolver(?MODULE, self()),
-    {ok, #state{scanner=undefined, ndb=Ndb, fdb=Fdb, customname=""}}.
+    FswatcherPid = fswatcher_driver:start_link(self(), music_dirs()),
+    {ok, #state{scanner=undefined, ndb=Ndb, fdb=Fdb, customname="", fswpid=FswatcherPid}}.
 
 handle_cast(sync, State) -> 
     dets:sync(State#state.fdb),
@@ -141,8 +146,16 @@ handle_call({add_file, File, Mtime, Size, Tags}, _From, State) when is_list(Tags
     end;
 
 handle_call({scan, Dir}, From, State) ->
+    fswatcher_driver:watch(Dir),
+
     spawn(fun()->
                   gen_server:reply(From, (catch scanner:scan_dir(State#state.scanner, Dir)))
+          end),
+    {noreply, State};
+
+handle_call({scan_file, File}, From, State) ->
+    spawn(fun()->
+                  gen_server:reply(From, (catch scanner:scan_file(State#state.scanner, File)))
           end),
     {noreply, State};
 

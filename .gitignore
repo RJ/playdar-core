@@ -22,6 +22,7 @@
 /playdar_modules/library/priv/taglib_driver/scanner_visual_studio_sln/Release/
 /playdar_modules/library/priv/taglib_driver/scanner_visual_studio_sln/scanner_visual_studio_sln/Debug/
 /playdar_modules/library/priv/taglib_driver/scanner_visual_studio_sln/scanner_visual_studio_sln/Release/
+/playdar_modules/library/priv/fswatcher_driver/fswatcher
 erl_crash.dump
 *.ncb
 *.suo

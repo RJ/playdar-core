@@ -6,7 +6,7 @@ endif
 ######################################################################## setup
 ERLCFLAGS = -pa ebin +debug_info -W -I include
 .DEFAULT_GOAL = all
-.PHONY: all clean
+.PHONY: all clean scanner
 
 # [src/foo.erl, src/bar/tee.erl] -> [ebin/foo.beam, ebin/tee.beam]
 define erl2beam
@@ -46,8 +46,6 @@ include/default_config.hrl: .default_config.hrl.escript
 	escript $< > $@
 
 ############################################################## playdar-modules
-TAGLIB_JSON_READER = playdar_modules/library/priv/taglib_driver/taglib_json_reader
-
 define MODULE_template
 $(1)/ebin:
 	mkdir -p $$@
@@ -60,13 +58,23 @@ endef
 
 $(foreach d, $(wildcard playdar_modules/*), $(eval $(call MODULE_template, $(d))) )
 
+############################################################################ c
+TAGLIB_JSON_READER = playdar_modules/library/priv/taglib_driver/taglib_json_reader
+
 $(TAGLIB_JSON_READER): $(TAGLIB_JSON_READER).cpp
 	g++ `taglib-config --cflags` `taglib-config --libs` -o $@ $<
 
-########################################################################## all
+ifeq ($(shell uname), Darwin)
+FSWATCHER = playdar_modules/library/priv/fswatcher_driver/fswatcher
+
+$(FSWATCHER): $(FSWATCHER).c
+	gcc -framework Carbon $< -o $@
+endif
+
+##################################################################### main bit
 all: $(BEAM) ebin/playdar.app ebin/mochiweb.app ebin/erlydtl.app
 
-scanner: $(TAGLIB_JSON_READER)
+scanner: $(TAGLIB_JSON_READER) $(FSWATCHER)
 
 clean:
 	rm -rf ebin $(EBIN)
