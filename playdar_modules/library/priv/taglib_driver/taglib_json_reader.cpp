@@ -9,7 +9,6 @@
 #include <taglib/fileref.h>
 #include <taglib/tag.h>
 
-#include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
 
 #include <iostream>
@@ -87,7 +86,6 @@ string scan_file(const char* path)
     TagLib::FileRef f(path);
     if (!f.isNull() && f.tag()) {
         TagLib::Tag *tag = f.tag();
-        int filesize = boost::filesystem::file_size(path);
         int bitrate = 0;
         int duration = 0;
         if (f.audioProperties()) {
@@ -104,7 +102,8 @@ string scan_file(const char* path)
         if (artist.length()==0 || track.length()==0) {
             return "{\"error\" : \"no tags\"}\n";
         }
-        string ext(toUtf8(boost::filesystem::extension(path)));
+        string pathstr(path);
+        string ext = pathstr.substr(pathstr.length()-4);
         string mimetype = ext2mime(boost::to_lower_copy(ext));
         // turn it into a url by prepending file://
         // because we pass all urls to curl:
@@ -112,7 +111,6 @@ string scan_file(const char* path)
 
         ostringstream os;
         os      <<  "{  \"url\" : \"" << urlpath << "\","
-                    "   \"filesize\" : " << filesize << ","
                     "   \"mimetype\" : \"" << mimetype << "\","
                     "   \"artist\" : \"" << tidy(artist) << "\","
                     "   \"album\" : \"" << tidy(album) << "\","
