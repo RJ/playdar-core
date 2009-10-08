@@ -4,8 +4,7 @@
 -module(lan_resolver).
 
 -include("playdar.hrl").
--behaviour(gen_server).
--behaviour(playdar_resolver).
+-behaviour([gen_server, playdar_resolver]).
 
 %% API
 -export([start_link/0, resolve/3, weight/1, targettime/1, name/1, send_response/5]).

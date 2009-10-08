@@ -39,6 +39,7 @@ upgrade() ->
 %% @doc supervisor callback.
 init([]) ->
     inets:start(),
+    application:start(crypto), % it isn't started automatically on windows?
     Ip = case os:getenv("MOCHIWEB_IP") of false -> "0.0.0.0"; Any -> Any end,   
     WebConfig = [
          {ip, Ip},
@@ -58,8 +59,8 @@ init([]) ->
                     {resolver_sup, start_link, []},
                     transient, infinity, supervisor, [resolver_sup]},
 
-    Streamer    = { stream_registry, 
-                    {stream_registry, start_link, []},
+    Reader      = { playdar_reader_registry, 
+                    {playdar_reader_registry, start_link, []},
                     permanent, 1000, worker, [] },
 
     HttpReg     = { http_registry, 
@@ -67,7 +68,7 @@ init([]) ->
                     permanent, 1000, worker, [] },
 
 
-    Processes = [Streamer, ResolverSup, HttpReg, Auth, Web],
+    Processes = [Reader, ResolverSup, HttpReg, Auth, Web],
 
     {ok, {{one_for_one, 10, 10}, Processes}}.
 

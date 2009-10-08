@@ -1,17 +1,20 @@
 -module(http_reader).
-
+-behaviour(playdar_reader).
 -include("playdar.hrl").
 -include_lib("kernel/include/file.hrl").
 
--export([start_link/3]).
+-export([start_link/3, init/1]).
 
 start_link(A, Pid, Ref) ->
     spawn_link(fun()->run(A,Pid,Ref)end).
 
+init(protocols) ->
+    [ {"http", {?MODULE, start_link}} ].
+
+
 % starts sending data to Pid
 run({struct, A}, Pid, Ref) ->
     Url = binary_to_list(proplists:get_value(<<"url">>, A)),
-    ?LOG(info, "Serving stream: ~s", [Url]),
     {ok, Id} = http:request(get, {Url, []}, [], 
                                [{sync, false}, 
                                 {stream, self}, 
@@ -20,6 +23,7 @@ run({struct, A}, Pid, Ref) ->
     receive
 
         {http, {Id, stream_start, Headers}} ->
+            ?LOG(info, "Serving stream: ~s", [Url]),
             % snag the content-length and content-type headers:
             Headers1 = [ { "content-type", 
                            proplists:get_value("content-type", Headers, 

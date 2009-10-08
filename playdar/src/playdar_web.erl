@@ -52,9 +52,13 @@ loop(Req, DocRoot) ->
                 Qpid ->
                     Ref = make_ref(),
                     A = qry:result(Qpid, Sid),
-                    StreamFun = stream_registry:get_streamer(A, self(), Ref),
-                    StreamFun(),
-                    stream_result(Req, Ref)
+                    case playdar_reader_registry:get_streamer(A, self(), Ref) of
+                        undefined ->
+                            Req:respond({503, [], <<"Playdar server error: no such protocol handler">>});
+                        Sfun -> 
+                            Sfun(),
+                            stream_result(Req, Ref)
+                    end
             end;
 
         "auth_1/" ->
