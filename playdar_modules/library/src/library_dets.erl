@@ -27,7 +27,7 @@ name(_Pid)              -> "Local Library using DETS".
 %%
 
 init([]) ->
-    {ok, Ndb} = dets:open_file("ngrams.dets",[{type, duplicate_bag}]),
+    {ok, Ndb} = dets:open_file("ngrams.dets",[{type, bag}]),
     {ok, Fdb} = dets:open_file("files.dets", [{type, set}]),
     ?LOG(info, "Library index contains ~w files", 
                [proplists:get_value(size, dets:info(Fdb), -1)]),
@@ -81,7 +81,7 @@ handle_info({scanner, finished}, State) ->
     io:format  ("Scan finished!~n",[]),
     {noreply, State#state{scanner=undefined}};
 
-handle_info({scanner, {file, File, Mtime, Tags}}, State) when is_list(Tags), is_list(File) ->
+handle_info({scanner, {file, File, Mtime, Size, Tags}}, State) when is_list(Tags), is_list(File) ->
     case proplists:get_value(<<"error">>, Tags) of
         undefined ->
             Art = proplists:get_value(<<"artist">>, Tags, <<"">>),
@@ -100,7 +100,7 @@ handle_info({scanner, {file, File, Mtime, Tags}}, State) when is_list(Tags), is_
                         {track_clean,   Track},
                         {hash,          proplists:get_value(<<"hash">>, Tags, <<"">>)},
                         {mimetype,      proplists:get_value(<<"mimetype">>, Tags, <<"">>)},
-                        {size,          proplists:get_value(<<"filesize">>, Tags, 0)},
+                        {size,          Size},
                         {trackno,       proplists:get_value(<<"trackno">>, Tags, 0)},
                         {bitrate,       proplists:get_value(<<"bitrate">>, Tags, 0)},
                         {duration,      proplists:get_value(<<"duration">>, Tags, 0)},
