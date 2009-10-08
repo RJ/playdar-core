@@ -2,7 +2,7 @@
 -export([scan_dir/2]).
 
 scan_dir(Dir, Pid) ->
-    taglib_driver:start_link("priv/taglib_driver/taglib_json_reader"),
+    taglib_driver:start_link("playdar_modules/library/priv/taglib_driver/taglib_json_reader"),
     do_scan_dir(Dir, Pid),
     Pid ! {scanner, finished}.
 
