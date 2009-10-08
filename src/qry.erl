@@ -2,6 +2,7 @@
 -module(qry).
 -behaviour(gen_server).
 -include("playdar.hrl").
+-define(MIN_SCORE, 0.5).
 
 %% API
 -export([start/1, start/2]).
@@ -69,7 +70,8 @@ handle_cast({add_timer, Tref}, State) ->
 
 handle_cast({add_results, Results}, State) ->
     Uuify = fun(A) ->
-        case proplists:get_value(<<"score">>, A) of
+        Score = proplists:get_value(<<"score">>, A),
+        case Score of
             1.0 -> qry:mark_as_solved(self());
             _ -> noop
         end,
@@ -90,7 +92,8 @@ handle_cast({add_results, Results}, State) ->
         [   begin Item = {struct, Uuify(R)},
                   lists:foreach(fun(Cb)->Cb(Item)end,State#state.callbacks),
                   Item
-            end || {struct, R} <- Results ],
+            end || {struct, R} <- Results, 
+                   proplists:get_value(<<"score">>, R, 0) >= ?MIN_SCORE ],
     {noreply, State#state{results=Results1}}.
 
 handle_info(_Info, State) ->

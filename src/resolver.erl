@@ -47,13 +47,6 @@ init([]) ->
     Tid = ets:new(queries, []),
     % and this one maps Source IDs to query pids
     Tid2= ets:new(sources, []),
-    % Load the resolvers:
-    ResNames = [fake_resolver, fake_resolver2, lan_resolver, library_dets],
-    ResSpecs = [ {Mod, 
-                  {Mod, start_link, []}, 
-                  transient, 5, worker, [Mod]} 
-                || Mod <- ResNames ],
-    ok = supervisor:check_childspecs(ResSpecs),
     % Load script-resolvers:
     Scripts = [ "/home/rj/src/playdar/contrib/demo-script/demo-resolver.php" ],
     ScriptSpecs = [ {list_to_atom(Script), 
@@ -61,7 +54,7 @@ init([]) ->
                      transient, 5, worker, [script_resolver]} 
                    || Script <- Scripts ],
     ok = supervisor:check_childspecs(ScriptSpecs),
-    Specs = ResSpecs ++ ScriptSpecs,    
+    Specs = ScriptSpecs,    
     % Adding to our own supervisor from here must be done by another proc or
     % it deadlocks:
     lists:foreach(fun(Spec) -> 
