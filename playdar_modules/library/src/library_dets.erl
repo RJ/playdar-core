@@ -37,6 +37,7 @@ init([]) ->
 handle_cast({resolve, Q, Qpid}, State) ->
     case Q of
         {struct, Mq} -> % Mq is a proplist
+            {ok, Hostname} = application:get_env(playdar, hostname),
             Report = fun({Props, Score}) ->
                 Rep =   {struct, [
                                 {<<"artist">>, proplists:get_value(artist, Props)},
@@ -48,7 +49,7 @@ handle_cast({resolve, Q, Qpid}, State) ->
                                 {<<"duration">>, proplists:get_value(duration, Props)},
                                 {<<"bitrate">>, proplists:get_value(bitrate, Props)},
                                 {<<"size">>, proplists:get_value(size, Props)},
-                                {<<"source">>, <<"source_here">>}
+                                {<<"source">>, list_to_binary(Hostname)}
                             ]},
                 qry:add_result(Qpid, Rep)                
             end,

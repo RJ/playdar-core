@@ -61,10 +61,15 @@ handle_cast({resolve, Q, Qpid}, State) ->
 handle_cast({send_response, A, Qid, Ip, Port}, State) ->
     ?LOG(debug, "sending response for qry ~s to ~w", [Qid, Ip]),
     {struct, Parts} = A,
+    {ok, Hostname} = application:get_env(playdar, hostname),
     Msg = {struct, [    {<<"_msgtype">>, <<"result">>},
                         {<<"qid">>, Qid},
                         {<<"result">>, 
-                         {struct, proplists:delete(<<"url">>,Parts)}}
+                         {struct, [
+                                   {<<"source">>, list_to_binary(Hostname)} |
+                                   proplists:delete(<<"url">>,
+                                    proplists:delete(<<"source">>,Parts))
+                         ]}}
                     ]},
     gen_udp:send(State#state.sock, Ip, Port, mochijson2:encode(Msg)),
     {noreply, State}.

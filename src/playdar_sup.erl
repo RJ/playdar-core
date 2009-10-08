@@ -46,6 +46,7 @@ init([]) ->
                  {port, 60210},
                  {docroot, playdar_deps:local_path(["priv", "www"])}
     ],
+    ok = playdar_config:load(),
     % Specs:
     Web         = { playdar_web,
                     {playdar_web, start, [WebConfig]},
