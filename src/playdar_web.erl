@@ -23,10 +23,25 @@ loop(Req, DocRoot) ->
     % TODO filter non /sid/ reqs unless from localhost
 	{R1,R2,R3} = now(),
 	random:seed(R1,R2,R3),
-    ?LOG(info, "~s ~s", [string:to_upper(atom_to_list(Req:get(method))),
-                         Req:get(raw_path)]),
-    
-    "/" ++ Path = Req:get(path),
+    Peer = Req:get(peer),
+    ?LOG(info, "~s ~s ~s", [string:to_upper(atom_to_list(Req:get(method))),
+                            Req:get(raw_path), Peer]),
+    % Reqs from localhost can do anything
+    % reqs from elsewhere are only allowed to stream.
+    % this presumes they did the resolving using lan plugin or something.
+    case Req:get(peer) of
+        "127.0.0.1" -> loop1(Req, DocRoot);
+        _ ->
+            case Req:get(path) of
+                "/sid/" ++ _ -> 
+                    loop1(Req, DocRoot);
+                _ ->
+                    Req:respond({403, [], <<"<h1>Not Authorised</h1>">>})
+            end
+    end.
+                    
+loop1(Req, DocRoot) ->    
+    "/" ++ Path = Req:get(path),        
     case Path of
         "" -> 
             Resolvers = [ [{"mod", atom_to_list(proplists:get_value(mod, Pl))}|proplists:delete(mod,Pl)]
