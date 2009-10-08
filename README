@@ -4,14 +4,13 @@ http://www.playdar.org/
 
 Building
 --------
-From top level, to build mochiweb and playdar:
+To build everything:
 
  $ make
 
 
 Running
 -------
-From the playdar dir:
 
  $ ./start-dev.sh
 
