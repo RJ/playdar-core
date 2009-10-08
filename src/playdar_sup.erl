@@ -62,13 +62,17 @@ init([]) ->
     Reader      = { playdar_reader_registry, 
                     {playdar_reader_registry, start_link, []},
                     permanent, 1000, worker, [] },
+    
+    ModulesSup  = { modules_sup,
+                    {modules_sup, start_link, []},
+                    transient, infinity, supervisor, [modules_sup]},
 
     HttpReg     = { http_registry, 
                     {http_registry, start_link, []},
                     permanent, 1000, worker, [] },
 
 
-    Processes = [Reader, ResolverSup, HttpReg, Auth, Web],
+    Processes = [Reader, ResolverSup, HttpReg, Auth, ModulesSup, Web],
 
     {ok, {{one_for_one, 10, 10}, Processes}}.
 

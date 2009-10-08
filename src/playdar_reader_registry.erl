@@ -8,7 +8,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, get_streamer/3, register_handler/2]).
+-export([start_link/0, get_streamer/3, register_handler/2, get_all/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -23,22 +23,21 @@ start_link() ->
 get_streamer({struct, A}, Pid, Ref) when is_list(A), is_pid(Pid) ->
     gen_server:call(?MODULE, {get_streamer, A, Pid, Ref}).
 
+% all protocol names handled
+get_all() -> gen_server:call(?MODULE, all).
+    
 % registers protocol to module name, eg:  "http" -> http_reader
 register_handler(Proto, Fun) ->
     gen_server:cast(?MODULE, {register_handler, Proto, Fun}).
     
 %% gen_server callbacks
 init([]) ->
-    % register the protocol handlers we support natively:
-    % (This hardcodedness is temporary)
-    Readers = [http_reader, file_reader],
-    lists:foreach( fun({Proto, F}) ->
-                    playdar_reader_registry:register_handler(Proto, F)
-                   end, 
-                   lists:flatten( [Mod:init(protocols) || Mod <- Readers] )
-                 ),
     {ok, #state{db=ets:new(stream_db,[])}}.
 
+handle_call(all, _From, State) ->
+    Protos = [ P || {P,_} <- ets:tab2list(State#state.db) ],
+    {reply, Protos, State};
+    
 handle_call({get_streamer, A, Pid, Ref}, _From, State) ->
     case proplists:get_value(<<"url">>, A) of
         UrlB when is_binary(UrlB) -> 

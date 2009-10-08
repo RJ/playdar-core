@@ -1,6 +1,4 @@
-% this one just matches artist:metallica to a hardcoded path.
 -module(fake_resolver).
-
 -include("playdar.hrl").
 -behaviour(gen_server).
 -behaviour(playdar_resolver).
@@ -17,11 +15,11 @@
 %% API
 start_link()            -> gen_server:start_link(?MODULE, [], []).
 resolve(Pid, Q, Qpid)   -> gen_server:cast(Pid, {resolve, Q, Qpid}).
-weight(_Pid)            -> 60.
-targettime(_Pid)        -> 20.
-name(_Pid)              -> "Fake1".
+weight(_Pid)            -> 50.
+targettime(_Pid)        -> 25.
+name(_Pid)              -> "Fake Mokele Resolver".
 
-%% gen_server callbacks 
+%% gen_server callbacks
 init([]) ->
     resolver:add_resolver(?MODULE, name(self()), weight(self()), targettime(self()), self()),
     {ok, #state{}}.
@@ -35,15 +33,13 @@ handle_cast({resolve, Q, Qpid}, State) ->
         {struct, Mq} -> % Mq is a proplist
             case string:to_lower(
                  binary_to_list(proplists:get_value(<<"artist">>, Mq))) of
-                "metallica" ->
+                "mokele" ->
                     Rep =   {struct, [
-                                {<<"artist">>, <<"Metallica">>},
-                                {<<"track">>,  <<"Enter Sandman">>},
-                                {<<"album">>,  <<"Self-titled">>},
-                                {<<"mimetype">>, <<"audio/mpeg">>},
-                                {<<"score">>, 0.9},
-                                {<<"url">>, <<"file:///home/rj/oldhome/rj/mp3/The Commitments/01 Mustang Sally.mp3">>}
-                                
+                                {<<"artist">>, <<"Mokele">>},
+                                {<<"track">>,  <<"Hiding in your Insides">>},
+                                {<<"album">>,  <<"">>},
+                                {<<"score">>, 0.2},
+                                {<<"url">>, <<"http://www.playdar.org/hiding.mp3">>}
                             ]},
                     qry:add_result(Qpid, Rep);
                 _ -> noop

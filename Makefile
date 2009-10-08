@@ -3,9 +3,7 @@ PARSER = deps/erlydtl/src/erlydtl/erlydtl_parser.erl
 ERL = $(notdir $(wildcard deps/mochiweb/src/*.erl) \
                $(wildcard deps/erlydtl/src/erlydtl/*.erl) \
                $(wildcard src/*.erl) \
-               $(wildcard src/readers/*.erl) \
                $(wildcard src/behaviours/*.erl) \
-               $(wildcard src/resolvers/*/*.erl) \
                $(PARSER))
 BEAM = $(ERL:%.erl=ebin/%.beam)
 APP = ebin/playdar.app ebin/mochiweb.app ebin/erlydtl.app
@@ -13,10 +11,6 @@ APP = ebin/playdar.app ebin/mochiweb.app ebin/erlydtl.app
 vpath %.erl src
 vpath %.erl src/readers
 vpath %.erl src/behaviours
-vpath %.erl src/resolvers/fake
-vpath %.erl src/resolvers/lan
-vpath %.erl src/resolvers/library
-vpath %.erl src/resolvers/script
 vpath %.erl deps/erlydtl/src/erlydtl
 vpath %.erl deps/mochiweb/src
 
