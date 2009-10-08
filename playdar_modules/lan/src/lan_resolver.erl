@@ -36,14 +36,16 @@ init([]) ->
 	random:seed(R1,R2,R3),
 	SQ = ets:new(seenqids,[]),
 	LAddr = {0,0,0,0},
-    {ok, Sock} = gen_udp:open(60210, [binary, 
-                                     {reuseaddr, true},{ip, ?BROADCAST}, 
-                                     {add_membership, {?BROADCAST, LAddr}}]),
+    Port = ?CONFVAL({lan,port},?PORT),
+    BC = ?CONFVAL({lan,broadcast},?BROADCAST),
+    {ok, Sock} = gen_udp:open(Port, [binary, 
+                                     {reuseaddr, true},{ip, BC}, 
+                                     {add_membership, {BC, LAddr}}]),
     resolver:add_resolver(?MODULE, name(self()), weight(self()), targettime(self()), self()),
     {ok, #state{sock=Sock, 
                 seenqids=SQ, 
-                broadcast=?CONFVAL({lan,broadcast},?BROADCAST),
-                port=?CONFVAL({lan,port},?BROADCAST)
+                broadcast=BC,
+                port=Port
                }}.
 
 handle_call(_Request, _From, State) ->

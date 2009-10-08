@@ -41,7 +41,7 @@ init([]) ->
     inets:start(),
     application:start(crypto), % it isn't started automatically on windows?
     ok = playdar_config:load(get_etc_dir()),
-    DefaultWebConfig = [{port, 60210}, {max_conns, 100}, {ip, "0.0.0.0"}, {docroot, playdar_deps:local_path(["priv", "www"])}],
+    DefaultWebConfig = [{port, 60210}, {max, 100}, {ip, "0.0.0.0"}, {docroot, playdar_deps:local_path(["priv", "www"])}],
     WebConfig = ?CONFVAL(web, DefaultWebConfig),
     io:format("WebConfig = ~p~n", [WebConfig]),
     % Specs:

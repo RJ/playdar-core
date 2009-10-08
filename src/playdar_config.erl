@@ -2,12 +2,11 @@
 
 -include("playdar.hrl").
 
--export([load/1]).
+-export([load/1, confval/2]).
 
 load(Etc) ->
     true = filelib:is_dir(Etc),
     ConfigFiles = filelib:wildcard(Etc ++ "/*.conf"),
-    io:format("Files: ~p~n", [ConfigFiles]),
     lists:foreach(fun handle_config/1, ConfigFiles),
     %io:format("Loaded config: ~p~n", [application:get_all_env(playdar)]),
     ok.
@@ -16,7 +15,7 @@ load(Etc) ->
 handle_config(FileFull) ->
     Toks = string:tokens(FileFull, "/"),
     File = lists:nth(length(Toks), Toks),
-    io:format("File:~s~n",[File]),
+    %io:format("File:~s~n",[File]),
     F  = lists:sublist(File, length(File)-5), % strip .conf
     Fa = list_to_atom(F),
     
@@ -57,3 +56,9 @@ handle_config(FileFull) ->
     end,
     
     ok.
+
+confval(ConfVal_K,ConfVal_Def) ->
+        case application:get_env(playdar, ConfVal_K) of
+            {ok, ConfVal_Result} -> ConfVal_Result;
+            _ -> ConfVal_Def
+        end.

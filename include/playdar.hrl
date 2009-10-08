@@ -14,8 +14,4 @@
         end ).
 
 
--define(CONFVAL(ConfVal_K,ConfVal_Def),
-        case application:get_env(playdar, ConfVal_K) of
-            {ok, ConfVal_Result} -> ConfVal_Result;
-            _ -> ConfVal_Def
-        end ).
+-define(CONFVAL(ConfVal_K,ConfVal_Def), playdar_config:confval(ConfVal_K,ConfVal_Def)).

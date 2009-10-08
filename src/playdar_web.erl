@@ -11,18 +11,9 @@
 
 start(Options) ->
     {DocRoot, Options1} = get_option(docroot, Options),
-    {Port, Options2} = get_option(port, Options1),
-    {Ip, Options3} = get_option(ip, Options2),
-    Loop = fun (Req) -> ?MODULE:loop(Req, DocRoot) end,
-    MochiOpts = [   {max, 20},
-                    {port, 60210},
-                    {ip, Ip},
-                    %{docroot, DocRoot},
-                    {name, ?MODULE}, 
-                    {loop, Loop}
-                    | Options3
-                ],
-    mochiweb_http:start(MochiOpts).
+    Loop = fun(Req) -> ?MODULE:loop(Req, DocRoot) end,
+    Opts = [ {loop, Loop}, {name, ?MODULE} | Options1 ],
+    mochiweb_http:start(Opts).
                 
 
 stop() ->
