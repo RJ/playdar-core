@@ -46,9 +46,10 @@ init([]) ->
     
     Specs = [ Spec || Spec <- lists:flatten(Specs0), Spec /= undefined ],
     % anything to start?
+    %?LOG(info, "Starting modules: ~p", [Specs]),
     case Specs of
         [] -> ignore;
-        _  -> {ok,{{one_for_all,0,1}, Specs}}
+        _  -> {ok,{{one_for_one,0,1}, Specs}}
     end.
 
 %% ====================================================================
