@@ -69,7 +69,7 @@ handle_cast({resolve, Q, Qpid}, State) ->
 handle_cast({send_response, A, Qid, Ip, Port}, State) ->
     ?LOG(debug, "sending response for qry ~s to ~w", [Qid, Ip]),
     {struct, Parts} = A,
-    {ok, Hostname} = application:get_env(playdar, hostname),
+    Hostname = ?CONFVAL(name, ""),
     Msg = {struct, [    {<<"_msgtype">>, <<"result">>},
                         {<<"qid">>, Qid},
                         {<<"result">>, 
