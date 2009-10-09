@@ -14,7 +14,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
      terminate/2, code_change/3]).
 
--record(state, {sock, seenqids, broadcast, port}).
+-record(state, {sock, sockp, seenqids, broadcast, port}).
 
 -define(BROADCAST, {239,255,0,1}). % default, can be changed in config
 -define(PORT, 60210). % can be changed in config
@@ -38,11 +38,16 @@ init([]) ->
 	LAddr = {0,0,0,0},
     Port = ?CONFVAL({lan,port},?PORT),
     BC = ?CONFVAL({lan,broadcast},?BROADCAST),
+    % Broadcast socket:
     {ok, Sock} = gen_udp:open(Port, [binary, 
                                      {reuseaddr, true},{ip, BC}, 
                                      {add_membership, {BC, LAddr}}]),
+    % Normal socket, which direct replies are sent to:
+    {ok, SockP}= gen_udp:open(Port, [binary, 
+                                     {reuseaddr, true}, {ip, {0,0,0,0}}]),
     resolver:add_resolver(?MODULE, name(self()), weight(self()), targettime(self()), self()),
     {ok, #state{sock=Sock, 
+                sockp=SockP,
                 seenqids=SQ, 
                 broadcast=BC,
                 port=Port
@@ -60,6 +65,7 @@ handle_cast({resolve, Q, Qpid}, State) ->
 		[{Qid, true}] -> 
 			{noreply, State};
 		_ ->
+            ?LOG(info, "LAN dispatching query", []),
 			ets:insert(State#state.seenqids, {Qid,true}),
 			Msg = {struct, [ {<<"_msgtype">>, <<"rq">>},{<<"qid">>,Qid} | Parts ]},
 			gen_udp:send(State#state.sock, State#state.broadcast, State#state.port, mochijson2:encode(Msg)),
@@ -82,7 +88,8 @@ handle_cast({send_response, A, Qid, Ip, Port}, State) ->
     gen_udp:send(State#state.sock, Ip, Port, mochijson2:encode(Msg)),
     {noreply, State}.
 
-handle_info({udp, _Socket, {A,B,C,D}=Ip, _InPortNo, Packet}, State) ->
+% could me a msg from broadcast socket, or private one (meaning a direct reply):
+handle_info({udp, _Sock, {A,B,C,D}=Ip, _InPortNo, Packet}, State) ->
     ?LOG(debug, "received msg: ~s", [Packet]),
     {struct, L} = mochijson2:decode(Packet),
     case proplists:get_value(<<"_msgtype">>,L) of
