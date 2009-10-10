@@ -100,6 +100,7 @@ handle_packet({auth, Name, Props}, State = #state{sock=Sock, authed=false}) when
 %% Incoming query:
 handle_packet({rq, Qid, Rq={struct, L}}, State = #state{authed=true}) when is_list(L) ->
     ?LOG(info, "Got a RQ: ~p", [L]),
+	p2p_router:seen_qid(Qid),
     % do nothing if we dispatched, or already received this qid
     case ets:lookup(State#state.seenqids, Qid) of
         [{Qid, true}] -> 
@@ -115,20 +116,15 @@ handle_packet({rq, Qid, Rq={struct, L}}, State = #state{authed=true}) when is_li
 handle_packet({result, Qid, {struct, L}}, State = #state{authed=true}) when is_list(L) ->
     case resolver:qid2pid(Qid) of
         Qpid when is_pid(Qpid) ->
-            {struct, L2} = proplists:get_value(<<"result">>, L),
-            Sid = proplists:get_value(<<"sid">>, L2),
+            Sid = proplists:get_value(<<"sid">>, L),
             Url = io_lib:format("p2p://~s ~s", [State#state.name, Sid]),
             qry:add_result(Qpid, {struct, 
-                                  [{<<"url">>, list_to_binary(Url)}|L2]}),
+                                  [{<<"url">>, list_to_binary(Url)}|L]}),
             {noreply, State};
         _ ->
             {noreply, State}
     end;
 
-handle_packet(Data, State = #state{authed=false}) ->
-    io:format("GOT(unauthed) ~p~n", [Data]),
-    {noreply, State};
-
-handle_packet(Data, State = #state{authed=true}) ->
-    io:format("GOT(authed) ~p~n", [Data]),
+handle_packet(Data, State) ->
+    io:format("GOT UNKNOWN, state: ~p ~p~n", [State, Data]),
     {noreply, State}.

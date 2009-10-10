@@ -11,7 +11,7 @@
 
 start_link()            -> gen_server:start_link({local,?MODULE},?MODULE,[],[]).
 
-resolve(Pid, Q, Qpid)   -> gen_server:cast(Pid, {resolve, Q, Qpid}).
+resolve(_Pid, Q, Qpid)   -> gen_server:cast(p2p_router, {resolve, Q, Qpid}).
 weight(_Pid)            -> 60.
 targettime(_Pid)        -> 1000.
 name(_Pid)              -> "p2p".
@@ -31,20 +31,7 @@ handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
 
-handle_cast({resolve, Q, Qpid}, State) ->
-    {struct, Parts} = Q,
-    Qid = qry:qid(Qpid),
-    % Ignore if we've dealt with this qid already
-    case ets:lookup(State#state.seenqids, Qid) of
-        [{Qid, true}] -> 
-            {noreply, State};
-        _ ->
-            ?LOG(info, "P2P dispatching query", []),
-            ets:insert(State#state.seenqids, {Qid,true}),
-            Msg = {rq, Qid, {struct, Parts }},
-            p2p_router:broadcast(Msg),            
-            {noreply, State}
-    end.
+handle_cast(_Msg, State) -> {noreply, State}.
 
 handle_info(_Info, State) ->
     {noreply, State}.
