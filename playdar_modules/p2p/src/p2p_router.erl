@@ -4,7 +4,7 @@
 -include("playdar.hrl").
 -include("p2p.hrl").
 
--export([start_link/1, register_connection/2, send_query_response/3, connect/2]).
+-export([start_link/1, register_connection/2, send_query_response/3, connect/2, peers/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -20,20 +20,40 @@ send_query_response(Ans, Qid, Name) ->
     gen_server:cast(?MODULE, {send_query_response, Ans, Qid, Name}).
 
 connect(Ip, Port) ->
-    gen_server:cast(?MODULE, {connect, Ip, Port}).
+    gen_server:call(?MODULE, {connect, Ip, Port}).
+
+peers() -> gen_server:call(?MODULE, peers).
 
 %% ====================================================================
 %% Server functions
 %% ====================================================================
 init([Port]) ->
     process_flag(trap_exit, true),
-    %Port = 60211,
     Pid = listener_impl:start(Port),
     {ok, #state{listener=Pid, conns=[]}}.
 
+handle_call({connect, Ip, Port}, _From, State) ->
+        case gen_tcp:connect(Ip, Port, ?TCP_OPTS, 10000) of
+            {ok, Sock} ->
+                {ok, Pid} = p2p_conn:start(Sock, out),
+                gen_tcp:controlling_process(Sock, Pid),
+                ?LOG(info, "New outbound connection to ~p:~p pid:~p", [Ip, Port,Pid]),
+                {reply, {ok, Pid}, State};        
+            {error, Reason} ->
+                ?LOG(warn, "Failed to connect to ~p:~p Reason: ~p", [Ip,Port,Reason]),
+                {reply, {error, Reason}, State}
+        end;
+        
+handle_call(peers, _From, State) -> {reply, State#state.conns, State};
+
 handle_call({register_connection, Pid, Name}, _From, State) ->
-    link(Pid),
-    {reply, ok, State#state{conns=[{Name, Pid}|State#state.conns]}}.
+    case proplists:get_value(Name, State#state.conns) of
+        undefined ->
+            link(Pid),
+            {reply, ok, State#state{conns=[{Name, Pid}|State#state.conns]}};
+        _  ->
+            {reply, disconnect, State}
+    end.
 
 %% --------------------------------------------------------------------
 %% Function: handle_cast/2
@@ -42,20 +62,6 @@ handle_call({register_connection, Pid, Name}, _From, State) ->
 %%          {noreply, State, Timeout} |
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
-handle_cast({connect, Ip, Port}, State) ->
-    spawn(
-     fun()->
-        case gen_tcp:connect(Ip, Port, ?TCP_OPTS, 10000) of
-            {ok, Sock} ->
-                ?LOG(info, "New outbound connection to ~p:~p", [Ip, Port]),
-                _Pid = p2p_conn:start(Sock, out),
-                ok;        
-            {error, Reason} ->
-                ?LOG(warn, "Failed to connect to ~p:~p Reason: ~p", [Ip,Port,Reason]),
-                ok
-        end
-     end),
-    {noreply, State};     
     
 handle_cast({send_query_response, {struct, Parts}, Qid, Name}, State) ->
     case proplists:get_value(Name, State#state.conns) of
@@ -84,12 +90,12 @@ handle_cast({send_query_response, {struct, Parts}, Qid, Name}, State) ->
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
 handle_info({'EXIT', Pid, _Reason}, State) ->
-    L = [ {Name, Pid1} || {Name, Pid1} <- State#state.conns, Pid == Pid1 ],
+    L = [ {Name, Pid} || {Name, Pid} <- State#state.conns],
     case L of
         [] ->
             {noreply, State};
-        {N, _P} ->
-            ?LOG(info, "Removing user from registered cons: ~p", N),
+        [{N, _P}] ->
+            ?LOG(info, "Removing user from registered cons: ~p", [N]),
             Conns = proplists:delete(N, State#state.conns),
             {noreply, State#state{conns=Conns}}
     end.

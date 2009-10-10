@@ -1,7 +1,7 @@
 -module(listener_impl).
 -behaviour(gen_listener_tcp).
 -include("p2p.hrl").
-
+-include("playdar.hrl").
 %% API
 -export([start/1]).
 
@@ -19,10 +19,12 @@ start(Port) ->
     gen_listener_tcp:start({local, ?MODULE}, ?MODULE, [Port], []).
 
 init([Port]) ->
-    {ok, {Port, ?TCP_OPTS}, nil}.
+    ?LOG(info, "listener_impl init",[]),
+    {ok, {Port, ?TCP_OPTS_SERVER}, nil}.
 
 handle_accept(Sock, State) ->
-    {ok, Pid} = p2p_conn:start(Sock),
+    ?LOG(info, "handle accept",[]),
+    {ok, Pid} = p2p_conn:start(Sock, in),
     gen_tcp:controlling_process(Sock, Pid),
     {noreply, State}.
 
