@@ -4,7 +4,7 @@
 -include("playdar.hrl").
 -include("p2p.hrl").
 
--export([start_link/1, register_connection/2, send_query_response/3, connect/2, peers/0]).
+-export([start_link/1, register_connection/2, send_query_response/3, connect/2, peers/0, broadcast/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -23,6 +23,8 @@ connect(Ip, Port) ->
     gen_server:call(?MODULE, {connect, Ip, Port}).
 
 peers() -> gen_server:call(?MODULE, peers).
+
+broadcast(M) when is_tuple(M) -> gen_server:cast(?MODULE, {broadcast, M}).
 
 %% ====================================================================
 %% Server functions
@@ -63,20 +65,20 @@ handle_call({register_connection, Pid, Name}, _From, State) ->
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
     
+handle_cast({broadcast, M}, State) ->
+    lists:foreach(fun({_Name, Pid})-> p2p_conn:send_msg(Pid, M) end, State#state.conns),
+    {noreply, State};
+    
 handle_cast({send_query_response, {struct, Parts}, Qid, Name}, State) ->
     case proplists:get_value(Name, State#state.conns) of
         {Name, Pid} ->
             Hostname = ?CONFVAL(name, ""),
-            Msg = {struct, [    {<<"_msgtype">>, <<"result">>},
-                                {<<"qid">>, Qid},
-                                {<<"result">>, 
-                                 {struct, [
-                                           {<<"source">>, list_to_binary(Hostname)} |
-                                              proplists:delete(<<"url">>,
-                                               proplists:delete(<<"source">>,Parts))
-                                          ]}}
-                           ]},
-            p2p_conn:send_msg(Pid, {result, Msg}),
+            Msg = {result, Qid, {struct, [
+                                    {<<"source">>, list_to_binary(Hostname)} |
+                                     proplists:delete(<<"url">>,
+                                      proplists:delete(<<"source">>,Parts))
+                                ]}},
+            p2p_conn:send_msg(Pid, Msg),
             {noreply, State};
         undefined ->
             {noreply, State}
@@ -90,7 +92,7 @@ handle_cast({send_query_response, {struct, Parts}, Qid, Name}, State) ->
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
 handle_info({'EXIT', Pid, _Reason}, State) ->
-    L = [ {Name, Pid} || {Name, Pid} <- State#state.conns],
+    L = [ {Name, Pid1} || {Name, Pid1} <- State#state.conns, Pid == Pid1],
     case L of
         [] ->
             {noreply, State};

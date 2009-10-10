@@ -1,6 +1,6 @@
 -module(p2p_resolver).
 -behaviour(gen_server).
-%-behaviour(playdar_resolver).
+-behaviour(playdar_resolver).
 -include("playdar.hrl").
 
 -export([start_link/0, resolve/3, weight/1, targettime/1, name/1]).
@@ -23,6 +23,8 @@ name(_Pid)              -> "p2p".
 
 init([]) ->
     {ok,_} = p2p_router:start_link(?CONFVAL({p2p,port},60211)),
+    lists:foreach(fun({Ip,Port})->p2p_router:connect(Ip,Port)end, ?CONFVAL({p2p,peers},[])),
+    resolver:add_resolver(?MODULE, name(self()), weight(self()), targettime(self()), self()),
     {ok, #state{ seenqids=ets:new(seenqids,[]) }}.
 
 handle_call(_Request, _From, State) ->
@@ -30,7 +32,7 @@ handle_call(_Request, _From, State) ->
     {reply, Reply, State}.
 
 handle_cast({resolve, Q, Qpid}, State) ->
-    {struct, _Parts} = Q,
+    {struct, Parts} = Q,
     Qid = qry:qid(Qpid),
     % Ignore if we've dealt with this qid already
     case ets:lookup(State#state.seenqids, Qid) of
@@ -39,8 +41,8 @@ handle_cast({resolve, Q, Qpid}, State) ->
         _ ->
             ?LOG(info, "P2P dispatching query", []),
             ets:insert(State#state.seenqids, {Qid,true}),
-            %Msg = {struct, [ {<<"_msgtype">>, <<"rq">>},{<<"qid">>,Qid} | Parts ]},
-            
+            Msg = {rq, Qid, {struct, Parts }},
+            p2p_router:broadcast(Msg),            
             {noreply, State}
     end.
 

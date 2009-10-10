@@ -17,7 +17,7 @@ start(Sock, InOut) ->
     gen_server:start(?MODULE, [Sock, InOut], []).
 
 send_msg(Pid, Msg) when is_tuple(Msg) ->
-    gen_server:call(Pid, ?MODULE, {send_msg, Msg}). 
+    gen_server:call(Pid, {send_msg, Msg}). 
 
 %% gen_server callbacks
 init([Sock, InOut]) ->
@@ -37,6 +37,7 @@ init([Sock, InOut]) ->
 
 
 handle_call({send_msg, Msg}, _From, State) when is_tuple(Msg) ->
+    ?LOG(info, "send_msg: ~p", [Msg]),
     gen_tcp:send(State#state.sock, ?T2B(Msg)),
     {reply, ok, State}.
 
@@ -97,9 +98,8 @@ handle_packet({auth, Name, Props}, State = #state{sock=Sock, authed=false}) when
     end;
 
 %% Incoming query:
-handle_packet({rq, Rq={struct, L}}, State = #state{authed=true}) when is_list(L) ->
+handle_packet({rq, Qid, Rq={struct, L}}, State = #state{authed=true}) when is_list(L) ->
     ?LOG(info, "Got a RQ: ~p", [L]),
-    Qid = proplists:get_value(<<"qid">>, L),
     % do nothing if we dispatched, or already received this qid
     case ets:lookup(State#state.seenqids, Qid) of
         [{Qid, true}] -> 
@@ -112,8 +112,7 @@ handle_packet({rq, Rq={struct, L}}, State = #state{authed=true}) when is_list(L)
     end;
 
 %% Incoming answer to a query:
-handle_packet({result, {struct, L}}, State = #state{authed=true}) when is_list(L) ->
-    Qid = proplists:get_value(<<"qid">>, L),
+handle_packet({result, Qid, {struct, L}}, State = #state{authed=true}) when is_list(L) ->
     case resolver:qid2pid(Qid) of
         Qpid when is_pid(Qpid) ->
             {struct, L2} = proplists:get_value(<<"result">>, L),

@@ -14,9 +14,10 @@ start_link() ->
 init([]) ->
     ModDir = "playdar_modules",
     % get all suitable subdirs (that contain an ebin dir)
-    Dirs = [ Dir || Dir <- filelib:wildcard(ModDir ++ "/*"), 
-                           filelib:is_dir(Dir), 
-                           filelib:is_dir(Dir++"/ebin") ],
+    Dirs0 = [ Dir || Dir <- filelib:wildcard(ModDir ++ "/*"), 
+                            filelib:is_dir(Dir), 
+                            filelib:is_dir(Dir++"/ebin") ],
+    Dirs = [ D || D <- Dirs0, begin L = string:tokens(D, "/"), lists:member(lists:nth(length(L),L), ?CONFVAL(modules_blacklist,[])) == false end ],
     Specs0 = [
         case A = filelib:wildcard(Dir++"/ebin/*.app") of
             % Is this module an OTP Application:
