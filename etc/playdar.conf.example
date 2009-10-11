@@ -33,7 +33,8 @@
 %% List of scripts to be started (resolver scripts)
 %%
 {scripts,[
-    "/home/rj/src/playdar/contrib/demo-script/demo-resolver.php"
+    %"/path/to/a/resolver/script1.py",
+    %"/path/to/a/resolver/script2.py"
 ]}.
  
 %% Settings for the Playdar webserver.
@@ -53,4 +54,8 @@
     {docroot, "priv/www"}
 ]}.
 
+%% List of module DIRECTORY NAMES that should not be loaded automatically:
+{modules_blacklist, [
+    "p2p"
+]}.
 
