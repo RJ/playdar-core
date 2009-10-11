@@ -18,16 +18,6 @@ Usage
 p2p_router:connect("peername_or_ip", 60210).
 p2p_router:peers().
 
-p2p.conf (no config is needed for defaults)
--------------------------------------------
-% Port servent listens on:
-{port, 60210}.
-% Peers to connect to on startup:
-{peers,[
-    {"peer1", 60210},
-    {"peer2", 9999}
-]}.
-% fwd delay for darknet style query fwding (recommended default 500)
-{fwd_delay, 500}.
-% Should we rewrite identity of peers when acting as a proxy
-{rewrite_identity, false}.
+Although the defaults are all sensible and no config is needed, refer to
+p2p.conf.example and make your own etc/p2p.conf if you like.
+

@@ -1,0 +1,24 @@
+% Port servent listens on
+
+{port, 60210}.
+
+% Peers to connect to on startup.
+
+{peers,[
+    {"joe.example.com", 60210},
+    {"mike.example.com", 9999}
+]}.
+
+% Query broadcast delay (ms) for darknet style query fwding 
+% Recommended default 500.
+
+{fwd_delay, 500}.
+
+% Should we rewrite identity of peers when acting as a proxy
+% This defaults to false for now, meaning if three ppl are connected in a chain
+% like so: A::B::C, A will see that results came from C (altho B still acts as
+% a proxy so the IP address of C is hidden from A). If Rewriting is enabled,
+% B will rewrite responses so that results appear to come from B, and the name
+% of C will not be exposed to A.
+
+{rewrite_identity, false}.
