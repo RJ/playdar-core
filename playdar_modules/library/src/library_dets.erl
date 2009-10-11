@@ -6,7 +6,7 @@
 
 %% API
 -export([start_link/0, resolve/3, weight/1, targettime/1, name/1]).
--export([scan/2 ]).
+-export([scan/2, stats/1 ]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -24,6 +24,7 @@ weight(_Pid)            -> 100.
 targettime(_Pid)        -> 20.
 name(_Pid)              -> "Local Library using DETS".
 
+stats(Pid)              -> gen_server:call(Pid, stats).
 %%
 
 init([]) ->
@@ -70,6 +71,10 @@ handle_cast({scan, Dir}, State) ->
     Pid = spawn_link(scanner, scan_dir, [Dir, self()]),
     {noreply, State#state{scanner=Pid}}.
 
+handle_call(stats, _From, State) ->
+    NumFiles = proplists:get_value(size, dets:info(State#state.fdb), -1),
+    {reply, [{num_files, NumFiles}], State};
+    
 handle_call(_Msg, _From, State) -> {reply, ok, State}.
 
 handle_info({'EXIT', Pid, Reason}, #state{scanner = Pid} = State) ->
