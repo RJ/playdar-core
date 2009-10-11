@@ -4,7 +4,7 @@
 
 behaviour_info(callbacks) -> 
     [
-     {init,1}
+     {reader_protocols,0}
     ];
 
 behaviour_info(_Other) ->
