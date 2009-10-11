@@ -1,6 +1,6 @@
 % Port servent listens on
 
-{port, 60210}.
+{port, 60211}.
 
 % Peers to connect to on startup.
 
