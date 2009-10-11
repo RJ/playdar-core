@@ -3,12 +3,12 @@
 -include("playdar.hrl").
 -include_lib("kernel/include/file.hrl").
 
--export([start_link/3, init/1]).
+-export([start_link/3, reader_protocols/0]).
 
 start_link(A, Pid, Ref) ->
     spawn_link(fun()->run(A,Pid,Ref)end).
 
-init(protocols) ->
+reader_protocols() ->
     [ {"http", {?MODULE, start_link}} ].
 
 

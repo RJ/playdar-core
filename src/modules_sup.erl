@@ -86,7 +86,7 @@ process_module(Mod) ->
                 true  ->
                     lists:foreach( fun({Proto, F}) ->
                                     playdar_reader_registry:register_handler(Proto, F)
-                                   end, Mod:init(protocols));
+                                   end, Mod:reader_protocols());
                 false -> nevermind
             end,
             case lists:member(playdar_resolver, Behaviours) of 

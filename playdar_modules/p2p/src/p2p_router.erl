@@ -1,15 +1,15 @@
 -module(p2p_router).
-
 -behaviour(gen_server).
 -include("playdar.hrl").
 -include("p2p.hrl").
 
--export([start_link/1, register_connection/2, send_query_response/3, connect/2, peers/0, broadcast/1]).
+-export([start_link/1, register_connection/2, send_query_response/3, 
+		 connect/2, peers/0, broadcast/1, seen_qid/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(state, {listener, conns}).
+-record(state, {listener, conns, seenqids}).
 
 start_link(Port) -> gen_server:start({local, ?MODULE}, ?MODULE, [Port], []).
 
@@ -26,13 +26,17 @@ peers() -> gen_server:call(?MODULE, peers).
 
 broadcast(M) when is_tuple(M) -> gen_server:cast(?MODULE, {broadcast, M}).
 
+seen_qid(Qid) -> gen_server:cast(?MODULE, {seen_qid, Qid}).
+
 %% ====================================================================
 %% Server functions
 %% ====================================================================
 init([Port]) ->
     process_flag(trap_exit, true),
     Pid = listener_impl:start(Port),
-    {ok, #state{listener=Pid, conns=[]}}.
+    {ok, #state{	listener=Pid,
+					seenqids=ets:new(seenqids,[]), 
+					conns=[]}}.
 
 handle_call({connect, Ip, Port}, _From, State) ->
         case gen_tcp:connect(Ip, Port, ?TCP_OPTS, 10000) of
@@ -57,6 +61,7 @@ handle_call({register_connection, Pid, Name}, _From, State) ->
             {reply, disconnect, State}
     end.
 
+
 %% --------------------------------------------------------------------
 %% Function: handle_cast/2
 %% Description: Handling cast messages
@@ -64,14 +69,17 @@ handle_call({register_connection, Pid, Name}, _From, State) ->
 %%          {noreply, State, Timeout} |
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
-    
+handle_cast({seen_qid, Qid}, State) ->
+	ets:insert(State#state.seenqids, {Qid, true}),
+	{noreply, State};
+
 handle_cast({broadcast, M}, State) ->
     lists:foreach(fun({_Name, Pid})-> p2p_conn:send_msg(Pid, M) end, State#state.conns),
     {noreply, State};
     
 handle_cast({send_query_response, {struct, Parts}, Qid, Name}, State) ->
     case proplists:get_value(Name, State#state.conns) of
-        {Name, Pid} ->
+        Pid when is_pid(Pid)->
             Hostname = ?CONFVAL(name, ""),
             Msg = {result, Qid, {struct, [
                                     {<<"source">>, list_to_binary(Hostname)} |
@@ -82,8 +90,22 @@ handle_cast({send_query_response, {struct, Parts}, Qid, Name}, State) ->
             {noreply, State};
         undefined ->
             {noreply, State}
-    end.
+    end;
 
+handle_cast({resolve, Q, Qpid}, State) ->
+    {struct, Parts} = Q,
+    Qid = qry:qid(Qpid),
+    % Ignore if we've dealt with this qid already
+    case ets:lookup(State#state.seenqids, Qid) of
+        [{_,true}] -> 
+            {noreply, State};
+        _ ->
+            ?LOG(info, "P2P dispatching query", []),
+            ets:insert(State#state.seenqids, {Qid,true}),
+            Msg = {rq, Qid, {struct, Parts }},
+            p2p_router:broadcast(Msg),            
+            {noreply, State}
+    end.
 %% --------------------------------------------------------------------
 %% Function: handle_info/2
 %% Description: Handling all non call/cast messages
