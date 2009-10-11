@@ -33,7 +33,7 @@ seen_qid(Qid) -> gen_server:cast(?MODULE, {seen_qid, Qid}).
 %% ====================================================================
 init([Port]) ->
     process_flag(trap_exit, true),
-    Pid = listener_impl:start(Port),
+    Pid = listener_impl:start_link(Port),
     {ok, #state{	listener=Pid,
 					seenqids=ets:new(seenqids,[]), 
 					conns=[]}}.
