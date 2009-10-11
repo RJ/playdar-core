@@ -1,5 +1,4 @@
 -module(p2p_router).
-
 -behaviour(gen_server).
 -include("playdar.hrl").
 -include("p2p.hrl").
