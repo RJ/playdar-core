@@ -80,7 +80,8 @@ handle_cast({send_response, A, Qid, Ip, Port}, State) ->
                         {<<"qid">>, Qid},
                         {<<"result">>, 
                          {struct, [
-                                   {<<"source">>, list_to_binary(Hostname)} |
+                                   {<<"source">>, list_to_binary(Hostname)},
+                                   {<<"port">>, ?CONFVAL({web, port}, 60210)} |
                                    proplists:delete(<<"url">>,
                                     proplists:delete(<<"source">>,Parts))
                          ]}}
@@ -98,9 +99,10 @@ handle_info({udp, _Sock, {A,B,C,D}=Ip, _InPortNo, Packet}, State) ->
             case resolver:qid2pid(Qid) of
                 Qpid when is_pid(Qpid) ->
                     {struct, L2} = proplists:get_value(<<"result">>, L),
+                    HttpPort = proplists:get_value(<<"port">>, L, 60210),
                     Sid = proplists:get_value(<<"sid">>, L2),
-                    Url = io_lib:format("http://~w.~w.~w.~w:60210/sid/~s",
-                                        [A,B,C,D,Sid]),
+                    Url = io_lib:format("http://~w.~w.~w.~w:~w/sid/~s",
+                                        [A,B,C,D,HttpPort,Sid]),
                     qry:add_result(Qpid, {struct, 
                                           [{<<"url">>, list_to_binary(Url)}|L2]}),
                     {noreply, State};
