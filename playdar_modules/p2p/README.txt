@@ -27,3 +27,7 @@ p2p.conf (no config is needed for defaults)
     {"peer1", 60210},
     {"peer2", 9999}
 ]}.
+% fwd delay for darknet style query fwding (recommended default 500)
+{fwd_delay, 500}.
+% Should we rewrite identity of peers when acting as a proxy
+{rewrite_identity, false}.

@@ -30,7 +30,9 @@ reader_protocols() ->
 
 init([]) ->
     {ok,_} = p2p_router:start_link(?CONFVAL({p2p,port},60211)),
+    % Connect to any peers listed in the config file:
     lists:foreach(fun({Ip,Port})->p2p_router:connect(Ip,Port)end, ?CONFVAL({p2p,peers},[])),
+    % Register us as a playdar resolver:
     resolver:add_resolver(?MODULE, name(self()), weight(self()), targettime(self()), self()),
     {ok, #state{ seenqids=ets:new(seenqids,[]) }}.
 
@@ -56,7 +58,7 @@ code_change(_OldVsn, State, _Extra) ->
 p2p_reader({struct, A}, Pid, Ref) ->
 	"p2p://"++Rest = binary_to_list(proplists:get_value(<<"url">>, A)),
 	[Sid, Name] = string:tokens(Rest, "\t"),
-	?LOG(info, "Fetching p2p stream for '~p' from '~p'", [Sid, Name]),
+	?LOG(info, "Requesting p2p stream for '~p' from '~p'", [Sid, Name]),
 	%TODO name2pid
 	case proplists:get_value(Name, p2p_router:peers()) of
 		P when is_pid(P) ->
