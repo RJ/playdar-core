@@ -89,6 +89,23 @@ string tidy(const string& s)
     return r;
 }
 
+string esc(const string& s)
+{
+    string r;
+    bool prevWasSpace = false;
+    r.reserve(s.length()+4);
+    for (string::const_iterator i = s.begin(); i != s.end(); i++) {
+        if (*i == '"') {
+            r += '\\';
+            r += '"';
+            prevWasSpace = false;
+        } else {
+            r += *i;
+            prevWasSpace = false;
+        }
+    }
+    return r;
+}
 
 
 string scan_file(const char* path)
@@ -121,7 +138,7 @@ string scan_file(const char* path)
         string urlpath = urlify( toUtf8(path) );
 
         ostringstream os;
-        os      <<  "{  \"url\" : \"" << urlpath << "\","
+        os      <<  "{  \"url\" : \"" << esc(urlpath) << "\","
                     "   \"mimetype\" : \"" << mimetype << "\","
                     "   \"artist\" : \"" << tidy(artist) << "\","
                     "   \"album\" : \"" << tidy(album) << "\","
