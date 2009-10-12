@@ -34,6 +34,8 @@ init([]) ->
     lists:foreach(fun({Ip,Port})->p2p_router:connect(Ip,Port)end, ?CONFVAL({p2p,peers},[])),
     % Register us as a playdar resolver:
     resolver:add_resolver(?MODULE, name(self()), weight(self()), targettime(self()), self()),
+    % Register our web request handler (for our localhost web gui)
+    http_registry:register_handler("p2p", fun p2p_web:http_req/2, "P2P Connection Status Page", "/p2p"),
     {ok, #state{ seenqids=ets:new(seenqids,[]) }}.
 
 handle_call(_Request, _From, State) ->

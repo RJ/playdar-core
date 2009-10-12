@@ -1,0 +1,24 @@
+{% include "../header.inc.html" %}
+<h3>Peers</h3>
+<table style="width:100%">
+<tr style="font-weight:bold">
+<td>Name</td>
+<td>Pid</td>
+<td>Bytes Received</td>
+<td>Bytes Sent</td>
+<td>Connected</td>
+</tr>
+{% for p in peers %}
+<tr style="background-color: {% cycle white,lightyellow %}">
+<td>{{ p.name }}</td>
+<td>{{ p.pid }} </td>
+<td>{{ p.stats.recv_oct }}</td>
+<td>{{ p.stats.send_oct }}</td>
+<td>{{ p.conndate }}</td>
+</tr>
+{% endfor %}
+</table>
+
+
+</body>
+</html>

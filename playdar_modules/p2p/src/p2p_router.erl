@@ -5,12 +5,12 @@
 
 -export([start_link/1, register_connection/2, send_query_response/3, 
 		 connect/2, peers/0, bytes/0, broadcast/1, broadcast/2, seen_qid/1, 
-         disconnect/1, report_bytes/3, sanitize_msg/1]).
+         disconnect/1, sanitize_msg/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(state, {listener, conns, seenqids, bytesdb, bwdb}).
+-record(state, {listener, conns, seenqids, piddb, namedb}).
 
 start_link(Port) -> gen_server:start({local, ?MODULE}, ?MODULE, [Port], []).
 
@@ -34,8 +34,6 @@ broadcast(M, Except) when is_tuple(M) -> gen_server:cast(?MODULE, {broadcast, M,
 
 seen_qid(Qid) -> gen_server:cast(?MODULE, {seen_qid, Qid}).
 
-report_bytes(Pid, Up, Down) -> gen_server:cast(?MODULE, {report_bytes, Pid, Up, Down}).
-
 %% ====================================================================
 %% Server functions
 %% ====================================================================
@@ -44,13 +42,13 @@ init([Port]) ->
     Pid = listener_impl:start_link(Port),
     % setup regular msgs to aggregate/calculate bandwidth usage:
     timer:send_interval(1000, self(), calculate_bandwidth_secs),
-    timer:send_interval(60000, self(), calculate_bandwidth_mins),
-    timer:send_interval(3600000, self(), calculate_bandwidth_hrs),
+    %timer:send_interval(60000, self(), calculate_bandwidth_mins),
+    %timer:send_interval(3600000, self(), calculate_bandwidth_hrs),
     {ok, #state{	listener=Pid,
 					seenqids=ets:new(seenqids,[]), 
 					conns=[],
-                    bytesdb=ets:new(bytesdb,[]),
-                    bwdb=ets:new(bwdb,[])
+                    piddb=ets:new(piddb,[]),
+                    namedb=ets:new(namedb,[])
                }}.
 
 handle_call({disconnect, Name}, _From, State) ->
@@ -73,60 +71,54 @@ handle_call({connect, Ip, Port}, _From, State) ->
                 {reply, {error, Reason}, State}
         end;
         
-handle_call(peers, _From, State) -> {reply, State#state.conns, State};
+handle_call(peers, _From, State) ->
+    Db = ets:tab2list(State#state.namedb),
+    {reply, Db, State};
 
 handle_call(bytes, _From, State) -> 
-    {reply, {ets:tab2list(State#state.bytesdb), ets:tab2list(State#state.bwdb)}, State};
+    {reply, ets:tab2list(State#state.piddb), State};
 
 handle_call({register_connection, Pid, Name}, _From, State) ->
-    case proplists:get_value(Name, State#state.conns) of
-        undefined ->
+    % TODO we should probably kick the old conn with this name
+    % so ppl can reconnect if their old conn lags out
+    case ets:lookup(State#state.namedb, Name) of
+        [] ->
             link(Pid),
-            ets:insert(State#state.bytesdb, {Pid, 0, 0}),
             N = now(),
-            ets:insert(State#state.bwdb,    {Pid, {N,0,0,[]}, {N,0,0,[]}, {N,0,0,[]}}), % secs, mins, hrs
-            {reply, ok, State#state{conns=[{Name, Pid}|State#state.conns]}};
+            BwStats = {{N,[]}, {N,[]}, {N,[]}},
+            ets:insert(State#state.piddb, {Pid, Name, BwStats}), % secs, mins, hrs
+            ets:insert(State#state.namedb, {Name, Pid}),
+            {reply, ok, State};
         _  ->
             {reply, disconnect, State}
     end.
 
 
-%% --------------------------------------------------------------------
-%% Function: handle_cast/2
-%% Description: Handling cast messages
-%% Returns: {noreply, State}          |
-%%          {noreply, State, Timeout} |
-%%          {stop, Reason, State}            (terminate/2 is called)
-%% --------------------------------------------------------------------
-
-handle_cast({report_bytes, Pid, Up, Down}, State) ->
-    % add the {packet,4} 4 byte header:
-    %Up1   = case Up   of 0 -> 0; Nu -> Nu+4 end,
-    %Down1 = case Down of 0 -> 0; Nd -> Nd+4 end,
-    ets:update_counter(State#state.bytesdb, Pid, [{2,Up},{3,Down}]),
-    {noreply, State};
+%%
 
 handle_cast({seen_qid, Qid}, State) ->
+    % TODO may want to use a bloom filter instead of ets here:
 	ets:insert(State#state.seenqids, {Qid, true}),
 	{noreply, State};
 
 handle_cast({broadcast, M, Except}, State) ->
+    NamePidList = ets:tab2list(State#state.namedb),
     lists:foreach(fun({_Name, Pid})->
                           if
                               Pid == Except -> noop;
                               true ->
                                 p2p_conn:send_msg(Pid, M)
                           end
-                  end, State#state.conns),
+                  end, NamePidList),
     {noreply, State};
     
 handle_cast({send_query_response, {struct, Parts}, Qid, Name}, State) ->
-    case proplists:get_value(Name, State#state.conns) of
-        Pid when is_pid(Pid)->
+    case ets:lookup(State#state.namedb, Name) of
+        [{_,Pid}] when is_pid(Pid)->
             Msg = {result, Qid, sanitize_msg({struct, Parts})},                                     
             p2p_conn:send_msg(Pid, Msg),
             {noreply, State};
-        undefined ->
+        [] ->
             {noreply, State}
     end;
 
@@ -152,67 +144,63 @@ handle_cast({resolve, Q, Qpid}, State) ->
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
 handle_info(calculate_bandwidth_secs, State) ->
-    Now = now(),
-    Pids = [P||{_N,P}<-State#state.conns],
-    lists:foreach(
-        fun(Pid)->
-            [{_, {SecT,SecUp,SecDown,SecL}, Mins, Hrs}] = ets:lookup(State#state.bwdb, Pid),
-            [{_,Up, Down}] = ets:lookup(State#state.bytesdb, Pid),
-            TimeDiff  = timer:now_diff(Now, SecT),
-            UpDiff    = Up-SecUp,
-            DownDiff  = Down-SecDown,
-            CSecUp  = round((UpDiff * 1000000)/TimeDiff),
-            CSecDown= round((DownDiff * 1000000)/TimeDiff),
-            NewSecL   = lists:sublist([{CSecUp,CSecDown}|SecL],60),
-            ets:insert(State#state.bwdb, {Pid, {Now, Up, Down, NewSecL}, Mins, Hrs})            
-        end, Pids),
+%%     Now = now(),
+%%     Pids = [P||{_N,P}<-State#state.conns],
+%%     lists:foreach(
+%%         fun(Pid)->
+%%             [{_, {SecT,SecUp,SecDown,SecL}, Mins, Hrs}] = ets:lookup(State#state.bwdb, Pid),
+%%             [{_,Up, Down}] = ets:lookup(State#state.bytesdb, Pid),
+%%             TimeDiff  = timer:now_diff(Now, SecT),
+%%             UpDiff    = Up-SecUp,
+%%             DownDiff  = Down-SecDown,
+%%             CSecUp  = round((UpDiff * 1000000)/TimeDiff),
+%%             CSecDown= round((DownDiff * 1000000)/TimeDiff),
+%%             NewSecL   = lists:sublist([{CSecUp,CSecDown}|SecL],60),
+%%             ets:insert(State#state.bwdb, {Pid, {Now, Up, Down, NewSecL}, Mins, Hrs})            
+%%         end, Pids),
     {noreply, State};
 
-handle_info(calculate_bandwidth_mins, State) ->
-    Now = now(),
-    Pids = [P||{_N,P}<-State#state.conns],
-    lists:foreach(
-        fun(Pid)->
-            [{_, Secs, {MinT,MinUp,MinDown,MinL}, Hrs}] = ets:lookup(State#state.bwdb, Pid),
-            [{_,Up, Down}] = ets:lookup(State#state.bytesdb, Pid),
-            TimeDiff  = timer:now_diff(Now, MinT),
-            UpDiff    = Up-MinUp,
-            DownDiff  = Down-MinDown,
-            CMinUp  = round((UpDiff * 1000000)/TimeDiff),
-            CMinDown= round((DownDiff * 1000000)/TimeDiff),
-            NewMinL   = lists:sublist([{CMinUp,CMinDown}|MinL],60),
-            ets:insert(State#state.bwdb, {Pid, Secs, {Now, Up, Down, NewMinL}, Hrs})            
-        end, Pids),
-    {noreply, State};
-
-handle_info(calculate_bandwidth_hrs, State) ->
-    Now = now(),
-    Pids = [P||{_N,P}<-State#state.conns],
-    lists:foreach(
-        fun(Pid)->
-            [{_, Secs, Mins, {HrT,HrUp,HrDown,HrL}}] = ets:lookup(State#state.bwdb, Pid),
-            [{_,Up, Down}] = ets:lookup(State#state.bytesdb, Pid),
-            TimeDiff  = timer:now_diff(Now, HrT),
-            UpDiff    = Up-HrUp,
-            DownDiff  = Down-HrDown,
-            CHrUp  = round((UpDiff * 1000000)/TimeDiff),
-            CHrDown= round((DownDiff * 1000000)/TimeDiff),
-            NewHrL   = lists:sublist([{CHrUp,CHrDown}|HrL],60),
-            ets:insert(State#state.bwdb, {Pid, Secs, Mins, {Now, Up, Down, NewHrL}})            
-        end, Pids),
-    {noreply, State};
+%% handle_info(calculate_bandwidth_mins, State) ->
+%%     Now = now(),
+%%     Pids = [P||{_N,P}<-State#state.conns],
+%%     lists:foreach(
+%%         fun(Pid)->
+%%             [{_, Secs, {MinT,MinUp,MinDown,MinL}, Hrs}] = ets:lookup(State#state.bwdb, Pid),
+%%             [{_,Up, Down}] = ets:lookup(State#state.bytesdb, Pid),
+%%             TimeDiff  = timer:now_diff(Now, MinT),
+%%             UpDiff    = Up-MinUp,
+%%             DownDiff  = Down-MinDown,
+%%             CMinUp  = round((UpDiff * 1000000)/TimeDiff),
+%%             CMinDown= round((DownDiff * 1000000)/TimeDiff),
+%%             NewMinL   = lists:sublist([{CMinUp,CMinDown}|MinL],60),
+%%             ets:insert(State#state.bwdb, {Pid, Secs, {Now, Up, Down, NewMinL}, Hrs})            
+%%         end, Pids),
+%%     {noreply, State};
+%% 
+%% handle_info(calculate_bandwidth_hrs, State) ->
+%%     Now = now(),
+%%     Pids = [P||{_N,P}<-State#state.conns],
+%%     lists:foreach(
+%%         fun(Pid)->
+%%             [{_, Secs, Mins, {HrT,HrUp,HrDown,HrL}}] = ets:lookup(State#state.bwdb, Pid),
+%%             [{_,Up, Down}] = ets:lookup(State#state.bytesdb, Pid),
+%%             TimeDiff  = timer:now_diff(Now, HrT),
+%%             UpDiff    = Up-HrUp,
+%%             DownDiff  = Down-HrDown,
+%%             CHrUp  = round((UpDiff * 1000000)/TimeDiff),
+%%             CHrDown= round((DownDiff * 1000000)/TimeDiff),
+%%             NewHrL   = lists:sublist([{CHrUp,CHrDown}|HrL],60),
+%%             ets:insert(State#state.bwdb, {Pid, Secs, Mins, {Now, Up, Down, NewHrL}})            
+%%         end, Pids),
+%%     {noreply, State};
 
 handle_info({'EXIT', Pid, _Reason}, State) ->
-    L = [ {Name, Pid1} || {Name, Pid1} <- State#state.conns, Pid == Pid1],
-    case L of
-        [] ->
-            {noreply, State};
-        [{N, _P}] ->
-            ?LOG(info, "Removing user from registered cons: ~p", [N]),
-            Conns = proplists:delete(N, State#state.conns),
-            ets:delete(State#state.bytesdb, Pid),
-            ets:delete(State#state.bwdb, Pid),
-            {noreply, State#state{conns=Conns}}
+    case ets:lookup(State#state.piddb, Pid) of
+        [{_, Name, _Bw}] ->
+            ?LOG(info, "Removing user from registered cons: ~p", [Name]),
+            ets:delete(State#state.namedb, Name),
+            ets:delete(State#state.piddb, Pid),
+            {noreply, State}
     end.
 
 %% --------------------------------------------------------------------

@@ -1,7 +1,7 @@
 -module(playdar_http_api).
--export([http_req/1]).
+-export([http_req/2]).
 
-http_req(Req) ->
+http_req(Req, DocRoot) ->
     Qs = Req:parse_qs(),
     M = proplists:get_value("method", Qs),
     Auth = playdar_auth:check_auth(proplists:get_value("auth",Qs,"")),
@@ -31,12 +31,12 @@ http_req(Req) ->
                     respond(Req, R)
             end;
 
-        _ -> http_req_authed(Req, M, Qs, Auth)
+        _ -> http_req_authed(Req, DocRoot, M, Qs, Auth)
 
     end.
     
 
-http_req_authed(Req, Method, Qs, _Auth) ->
+http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
     case Method of
         "resolve" ->
             Artist = proplists:get_value("artist", Qs, ""),

@@ -4,7 +4,7 @@
 %% @doc Web server for playdar.
 
 -module(playdar_web).
--export([start/1, stop/0, loop/2]).
+-export([start/1, stop/0, loop/2, render/3]).
 -include("playdar.hrl").
 
 %% External API
@@ -48,9 +48,10 @@ loop1(Req, DocRoot) ->
         "" -> 
             Resolvers = [ [{"mod", atom_to_list(proplists:get_value(mod, Pl))}|proplists:delete(mod,Pl)]
                                || Pl <- resolver:resolvers() ],
+            HttpMenus = http_registry:get_all(),
             Vars = [ {resolvers, Resolvers}, 
                      {protocols, playdar_reader_registry:get_all()},
-                     {http_paths, http_registry:get_all()}
+                     {http_paths, HttpMenus}
                    ],
             render(Req, DocRoot ++ "/index.html", Vars);
         
@@ -190,7 +191,7 @@ loop1(Req, DocRoot) ->
                 undefined ->
                     Req:not_found();     
                 Handler ->
-                    Handler(Req)
+                    Handler(Req, DocRoot)
             end
     end.
 

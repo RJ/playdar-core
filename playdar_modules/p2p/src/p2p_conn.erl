@@ -4,13 +4,13 @@
 -define(T2B(T), term_to_binary(T)).
 -define(B2T(T), binary_to_term(T)).
 %% API
--export([start/2, send_msg/2, request_sid/4]).
+-export([start/2, send_msg/2, request_sid/4, stats/1, stats/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
      terminate/2, code_change/3]).
 
--record(state, {sock, authed, name, props, inout, seenqids, transfers}).
+-record(state, {sock, authed, name, props, inout, seenqids, transfers, conntime}).
 
 %% API
 start(Sock, InOut) ->
@@ -22,9 +22,14 @@ send_msg(Pid, Msg) when is_tuple(Msg) ->
 request_sid(Pid, Sid, RecPid, Ref) ->
 	gen_server:cast(Pid, {request_sid, Sid, RecPid, Ref}).
 
+stats(Pid) -> stats(Pid, undefined).
+stats(Pid, Opts) -> gen_server:call(Pid, {stats,Opts}).
+
 %% gen_server callbacks
+
 init([Sock, InOut]) ->
-    ?LOG(info, "p2p_conn:init, inout:~w", [InOut]),
+    {ok, {SockAddr, SockPort}} = inet:peername(Sock),
+    ?LOG(info, "p2p_conn:init, inout:~w Remote:~p:~p", [InOut,SockAddr,SockPort]),
     % kill the connection if not authed after 10 seconds:
     timer:send_after(15000, self(), auth_timeout),
     % if we are initiating the connection, ie it's outbound, send our auth:
@@ -32,7 +37,7 @@ init([Sock, InOut]) ->
         out ->
             Msg = ?T2B({auth, ?CONFVAL(name, "unknown"), []}),
             % don't report b/w counters for auth msgs
-            gen_tcp:send(Sock, Msg);
+            ok = gen_tcp:send(Sock, Msg);
         in ->
             noop
     end,
@@ -43,21 +48,28 @@ init([Sock, InOut]) ->
                     authed=false, 
                     inout=InOut, 
                     seenqids=SQ, 
-                    transfers=Transfers}}.
+                    transfers=Transfers,
+                    conntime=erlang:localtime()}}.
 
+
+handle_call({stats,Opts}, _From, State) ->
+    case Opts of
+        O when is_list(O) ->
+            {reply, {State#state.conntime, inet:getstat(State#state.sock, O)}, State};
+        _ ->
+            {reply, {State#state.conntime, inet:getstat(State#state.sock)}, State}
+    end;
 
 handle_call({send_msg, Msg}, _From, State) when is_tuple(Msg) ->
     ?LOG(info, "send_msg: ~p", [Msg]),
     MsgB = ?T2B(Msg),
-    gen_tcp:send(State#state.sock, MsgB),
-    p2p_router:report_bytes(self(), size(MsgB), 0),
+    ok = gen_tcp:send(State#state.sock, MsgB),
     {reply, ok, State}.
 
 handle_cast({request_sid, Sid, RecPid, Ref}, State) ->
 	ets:insert(State#state.transfers, {{Sid, Ref},RecPid}),
     Msg = ?T2B({request_sid, Ref, Sid}),
-	gen_tcp:send(State#state.sock, Msg),
-    p2p_router:report_bytes(self(), size(Msg), 0),    
+	ok = gen_tcp:send(State#state.sock, Msg),    
 	{noreply, State};
 
 handle_cast(_Msg, State) ->
@@ -77,7 +89,6 @@ handle_info({tcp, Sock, Packet}, State = #state{sock=Sock}) ->
     end,
     {Reply, NewState} = handle_packet(Term, State),
     ok = inet:setopts(Sock, [{active, once}]),
-    p2p_router:report_bytes(self(), 0, size(Packet)),
     {Reply, NewState};
 
 % Refwd query that originally arrived at this connection
@@ -127,8 +138,9 @@ handle_packet({auth, Name, Props}, State = #state{sock=Sock, authed=false}) when
             % send our details to them if the connection was inbound, ie we didnt send yet:
             case State#state.inout of
                 in ->
-                    M = ?T2B({auth, ?CONFVAL(name, "unknown"), []}),
-                    gen_tcp:send(Sock, M),
+                    DefName = "unknown-"++erlang:integer_to_list(random:uniform(9999999)), % HACK
+                    M = ?T2B({auth, ?CONFVAL(name, DefName), []}),
+                    ok = gen_tcp:send(Sock, M),
                     % dont report b/w counters for auth msgs
                     {noreply, State#state{authed=true, name=Name, props=Props}};
                 out ->
@@ -180,8 +192,7 @@ handle_packet({request_sid, Ref, Sid}, State = #state{authed=true}) ->
 		undefined ->
             ?LOG(info,"sid not found: ~p", [Sid]),
 			Msg = ?T2B({sid_response, Ref, Sid, {error, 404}}),
-			gen_tcp:send(State#state.sock, Msg),
-            p2p_router:report_bytes(self(), size(Msg), 0),
+			ok = gen_tcp:send(State#state.sock, Msg),
 			{noreply, State};
 		Qpid ->
 			{struct, L} = qry:result(Qpid, Sid),
@@ -191,9 +202,7 @@ handle_packet({request_sid, Ref, Sid}, State = #state{authed=true}) ->
 				undefined ->
                     ?LOG(info, "Error, this sid has no url: ~p", [Sid]),
 					Msg = ?T2B({sid_response, Ref, Sid, {error, 5030}}),
-                    Size = size(Msg),
-                    p2p_router:report_bytes(self(), Size, 0),
-					gen_tcp:send(State#state.sock, Msg),
+					ok = gen_tcp:send(State#state.sock, Msg),
 					{noreply, State};
 				_ ->
                     ConnPid = self(),
@@ -232,9 +241,7 @@ stream_result(Ref, Sid, Sock, Qpid, ConnPid) ->
 	case playdar_reader_registry:get_streamer(A, self(), Ref) of
 		undefined ->
 			Msg = ?T2B({sid_response, Ref, Sid, {error, 5031}}),
-            Size = size(Msg),
-            p2p_router:report_bytes(ConnPid, Size, 0),
-			gen_tcp:send(Sock, Msg),
+			ok = gen_tcp:send(Sock, Msg),
 			ok;
 		Sfun ->			
 			% we trap exits, so if the streaming fun crashes we can catch it
@@ -244,24 +251,18 @@ stream_result(Ref, Sid, Sock, Qpid, ConnPid) ->
 			receive
 				{Ref, headers, Headers} ->
 					M = ?T2B({sid_response, Ref, Sid, {headers, Headers}}),
-                    Size = size(M),
-                    p2p_router:report_bytes(ConnPid, Size, 0),
-					gen_tcp:send(Sock, M),
+					ok = gen_tcp:send(Sock, M),
 					stream_result_body(Ref, Sid, Sock, ConnPid);
 				
 				{'EXIT', _Pid, Reason} when Reason /= normal ->
                     ?LOG(error, "Streamer fun crashed: ~p", [Reason]),
 					Msg = ?T2B({sid_response, Ref, Sid, {error, 999}}),
-                    Size = size(Msg),
-                    p2p_router:report_bytes(ConnPid, Size, 0),
-					gen_tcp:send(Sock, Msg),
+					ok = gen_tcp:send(Sock, Msg),
 					ok
 			
 				after 10000 ->
 					M = ?T2B({sid_response, Ref, Sid, {error, headers_timeout}}),
-					Size = size(M),
-                    p2p_router:report_bytes(ConnPid, Size, 0),
-                    gen_tcp:send(Sock, M),
+                    ok = gen_tcp:send(Sock, M),
 					ok
 			end
 	end.
@@ -271,36 +272,26 @@ stream_result_body(Ref, Sid, Sock, ConnPid) ->
 		{'EXIT', _Pid, Reason} when Reason /= normal ->
             ?LOG(error, "Streamer fun crashed whilst streaming body: ~p", [Reason]),
 			Msg = ?T2B({sid_response, Ref, Sid, {error, 999}}),
-            Size = size(Msg),
-            p2p_router:report_bytes(ConnPid, Size, 0),
-			gen_tcp:send(Sock, Msg),
+			ok = gen_tcp:send(Sock, Msg),
 			ok;
 		
         {Ref, data, Data} ->
 			Msg = ?T2B({sid_response, Ref, Sid, {data, Data}}),
-            Size = size(Msg),
-            p2p_router:report_bytes(ConnPid, Size, 0),
-			gen_tcp:send(Sock, Msg),
+			ok = gen_tcp:send(Sock, Msg),
             stream_result_body(Ref, Sid, Sock, ConnPid);
         
         {Ref, error, _Reason} ->
             Msg = ?T2B({sid_response, Ref, Sid, {error, -1}}),
-            Size = size(Msg),
-            p2p_router:report_bytes(ConnPid, Size, 0),
-			gen_tcp:send(Sock, Msg),
+			ok = gen_tcp:send(Sock, Msg),
 			ok;
         
         {Ref, eof} ->
 			Msg = ?T2B({sid_response, Ref, Sid, eof}),
-            Size = size(Msg),
-            p2p_router:report_bytes(ConnPid, Size, 0),
-			gen_tcp:send(Sock, Msg),
+			ok = gen_tcp:send(Sock, Msg),
             ok
     
     after 10000 ->
 			Msg = ?T2B({sid_response, Ref, Sid, {error, timeout}}),
-            Size = size(Msg),
-            p2p_router:report_bytes(ConnPid, Size, 0),
-			gen_tcp:send(Sock, Msg),
+			ok = gen_tcp:send(Sock, Msg),
 			ok
     end.
