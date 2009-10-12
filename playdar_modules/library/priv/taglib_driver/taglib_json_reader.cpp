@@ -9,11 +9,11 @@
 #include <taglib/fileref.h>
 #include <taglib/tag.h>
 
-#include <boost/algorithm/string.hpp>
-
 #include <iostream>
 #include <cstdio>
 #include <sstream>
+#include <algorithm>
+#include <string>
 
 #include <netinet/in.h> // for htonl etc
 
@@ -26,6 +26,16 @@ string toUtf8(const wstring& i);
 #define fromUtf8(s) (s)
 #define toUtf8(s) (s)
 #endif
+
+void trim(string& str)
+{
+    size_t startpos = str.find_first_not_of(" \t");
+    size_t endpos = str.find_last_not_of(" \t");
+    if(( string::npos == startpos ) || ( string::npos == endpos))
+        str = "";
+    else
+        str = str.substr( startpos, endpos-startpos+1 );
+}
 
 string urlify(const string& p)
 {
@@ -96,15 +106,16 @@ string scan_file(const char* path)
         string artist = tag->artist().toCString(true);
         string album  = tag->album().toCString(true);
         string track  = tag->title().toCString(true);
-        boost::trim(artist);
-        boost::trim(album);
-        boost::trim(track);
+        trim(artist);
+        trim(album);
+        trim(track);
         if (artist.length()==0 || track.length()==0) {
             return "{\"error\" : \"no tags\"}\n";
         }
         string pathstr(path);
         string ext = pathstr.substr(pathstr.length()-4);
-        string mimetype = ext2mime(boost::to_lower_copy(ext));
+        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        string mimetype = ext2mime(ext);
         // turn it into a url by prepending file://
         // because we pass all urls to curl:
         string urlpath = urlify( toUtf8(path) );
