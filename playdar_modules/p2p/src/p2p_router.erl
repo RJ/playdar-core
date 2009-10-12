@@ -52,10 +52,11 @@ init([Port]) ->
                }}.
 
 handle_call({disconnect, Name}, _From, State) ->
-    case [ {N,P} || {N,P} <- State#state.conns, N==Name] of
-        [{_,_Pid}] ->
-            {reply, todo, State};
-        _ -> 
+    case ets:lookup(State#state.namedb, Name) of
+        [{_,Pid}] ->
+            erlang:exit(Pid, disconnect_request),
+            {reply, ok, State};
+        [] -> 
             {reply, noname, State}
     end;
 

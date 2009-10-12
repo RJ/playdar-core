@@ -7,6 +7,7 @@
 <td>Bytes Received</td>
 <td>Bytes Sent</td>
 <td>Connected</td>
+<td>Admin</td>
 </tr>
 {% for p in peers %}
 <tr style="background-color: {% cycle white,lightyellow %}">
@@ -15,10 +16,11 @@
 <td>{{ p.stats.recv_oct }}</td>
 <td>{{ p.stats.send_oct }}</td>
 <td>{{ p.conndate }}</td>
+<td><a onclick="return confirm('Sure you want to disconnect this peer?');"
+       href="/p2p?ftok={{ftok}}&disconnect={{p.name|urlencode}}">disconnect</a></td>
 </tr>
 {% endfor %}
 </table>
-
 
 </body>
 </html>
