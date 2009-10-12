@@ -1,6 +1,7 @@
 % taglib interface to external scanner binary
 -module(taglib_driver).
 -behaviour(gen_server).
+-include("playdar.hrl").
 -export([start_link/1, parsefile/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
      terminate/2, code_change/3]).
@@ -16,17 +17,23 @@ parsefile(File) when is_list(File) ->
 %%
 
 init([Exe]) ->
+	process_flag(trap_exit, true),
     Port = open_port({spawn, Exe}, [binary, {packet, 4}, use_stdio]),
     {ok, #state{port=Port}}.
 
 handle_call({parsefile, File}, _From, #state{port=Port} = State) ->
     % TODO: if this file crashes the scanner binary, trap it here
     %       return "no tags" then restart the binary
+	?LOG(info, "Scanning ~s", [File]),
     port_command(Port, File),
     receive
         {Port, {data, Data}} ->
             {struct, Tags} = mochijson2:decode(Data),
-            {reply, Tags, State}
+            {reply, Tags, State};
+		
+		{'EXIT', Port, Reason} ->
+			?LOG(error, "SCANNER CRASHED!!!! ~p", [Reason]),
+			{stop, Reason, State}
     end.
 
 handle_cast(_Msg, State) ->    {noreply, State}.
