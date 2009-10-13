@@ -6,3 +6,6 @@ ebin
 /auth.db
 /deps/erlydtl/src/erlydtl/erlydtl_parser.erl
 .DS_Store
+*.lo
+*.la
+*.html
