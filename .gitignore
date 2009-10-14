@@ -9,3 +9,4 @@ ebin
 *.lo
 *.la
 *.html
+*.conf
