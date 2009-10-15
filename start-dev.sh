@@ -1,3 +1,3 @@
 #!/bin/sh
 cd `dirname $0`
-exec erl -pa ebin -boot start_sasl -s reloader -s playdar
+exec erl -sname playdar@localhost -pa ebin -boot start_sasl -s reloader -s playdar

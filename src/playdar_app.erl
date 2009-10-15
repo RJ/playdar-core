@@ -14,6 +14,7 @@
 %% @doc application start callback for playdar.
 start(_Type, _StartArgs) ->
     playdar_deps:ensure(),
+    playdar_ctl:init(),
     playdar_sup:start_link().
 
 %% @spec stop(_State) -> ServerRet

@@ -1,0 +1,18 @@
+#!/bin/sh
+# 
+# Playdar ctl script for controlling a running playdar instance
+#
+ORIGDIR=${CWD}
+cd `dirname $0`
+
+EBIN=./ebin/
+SNAME=playdar_ctl-`date +%s`
+
+erl -sname "${SNAME}" \
+    -noinput \
+    -pa "${EBIN}" \
+    -s playdar_ctl \
+    -extra playdar@localhost \
+    "$@"
+
+cd "${ORIGDIR}"

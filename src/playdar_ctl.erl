@@ -1,0 +1,115 @@
+-module(playdar_ctl).
+-include("playdar.hrl").
+
+-export([init/0, cmd/1, start/0, register_command/3]).
+
+start() ->
+    [NodeS | Args] = init:get_plain_arguments(),
+    Node = list_to_atom(NodeS),
+    case rpc:call(Node, ?MODULE, cmd, [Args]) of
+        {badrpc, R} ->
+            io:format("Failed to communicate with ~p: ~p~n", [Node, R]),
+            halt(?WTF);
+        Ret ->
+            halt(Ret)
+    end.    
+
+init() ->
+    ets:new(ctlcmds, [set, public, named_table]),
+    register_default_commands(),
+    ok.
+
+cmd("")         -> usage();
+
+cmd([Cmd|Args]) -> 
+    case ets:lookup(ctlcmds, Cmd) of
+        [{Cmd, _Desc, Fun}] ->
+            Result = case Fun of 
+                        {M,F} when is_atom(M), is_atom(F) -> 
+                            erlang:apply(M,F,[Args]); 
+                        F when is_function(F) -> 
+                            erlang:apply(F,[Args]) 
+                     end,
+            case Result of
+                ?WTF ->
+                    usage(),
+                    ?WTF;
+                X ->
+                    X
+            end;
+        [] ->
+            usage(),
+            ?WTF
+    end.
+    
+
+usage() ->
+    io:format("~nUsage: playdarctl <cmd> [<args>..]~n"),
+    io:format("~nCommands:~n"),
+    lists:foreach(fun({Cmd, Desc, _Fun})->
+                          Pad = string:chars($\s, 14 - length(Cmd)),
+                          io:format("  ~s~s~s~n",[Cmd, Pad, Desc])
+                  end, ets:tab2list(ctlcmds)),
+    io:format("~n"),
+    ?OK.
+
+
+% Fun must have an arity of 1 (gets passed a list of args)
+% Fun can also be {Mod, Fun}. 
+% eg: register_command("ping", "prints out pong", {ping_svr, do_ping}).
+register_command(Cmd, Desc, Fun) ->
+    ets:insert(ctlcmds, {Cmd, Desc, Fun}),
+    ok.
+
+register_default_commands() ->
+    Cmds = [
+        {"ping",
+         "Ask playdar daemon to pong", fun ping/1 },
+        {"status",
+         "Check status of running playdar instance", fun status/1 },
+        {"numfiles",
+         "Report how many files are indexed by the library module", fun numfiles/1},
+        {"scan",
+         "<dir> - scans dir for audio files, adds to library", fun scan/1}
+    ],
+    lists:foreach( fun({Cmd, Desc, Fun}) -> 
+                           register_command(Cmd,Desc,Fun)
+                   end, Cmds),
+    ok.
+        
+%% Built-in commands
+
+status([]) ->
+    io:format("~p~n", [init:get_status()]),
+    ?OK.
+    
+ping([]) ->
+    io:format("PONG~n"),
+    ?OK.
+
+numfiles([]) ->
+    case resolver:resolver_pid(library_dets) of
+        P when is_pid(P) ->
+            Num = proplists:get_value(num_files, library_dets:stats(P), 0),
+            io:format("~w~n", [Num]),
+            ?OK;
+        _ ->
+            io:format("Library module not loaded~n"),
+            ?ERROR
+    end.
+
+scan([Dir]) ->
+    case resolver:resolver_pid(library_dets) of
+        P when is_pid(P) ->
+            io:format("Scan backgrounded.~n"),
+            library_dets:scan(P, Dir),
+            ?OK;
+        _ ->
+            io:format("Library module not loaded~n"),
+            ?ERROR
+    end.
+
+
+
+
+
