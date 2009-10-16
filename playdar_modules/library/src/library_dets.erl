@@ -5,8 +5,8 @@
 -behaviour(playdar_resolver).
 
 %% API
--export([start_link/0, resolve/3, weight/1, targettime/1, name/1]).
--export([scan/2, stats/1 ]).
+-export([start_link/0, resolve/3, weight/1, targettime/1, name/1, dump_library/1]).
+-export([scan/2, stats/1, add_file/5, sync/1 ]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -16,24 +16,38 @@
 
 %%
 
-start_link()        -> gen_server:start_link(?MODULE, [], []).
-scan(Pid, Dir)      -> gen_server:cast(Pid, {scan, Dir}).
+start_link()            -> gen_server:start_link(?MODULE, [], []).
+scan(Pid, Dir)          -> gen_server:call(Pid, {scan, Dir}, infinity).
 
+add_file(Pid, F, Mtime, Size, L) -> gen_server:call(Pid, {add_file, F, Mtime, Size, L}, 60000).
+sync(Pid)               -> gen_server:cast(Pid, sync).
+  
 resolve(Pid, Q, Qpid)   -> gen_server:cast(Pid, {resolve, Q, Qpid}).
 weight(_Pid)            -> 100.
 targettime(_Pid)        -> 20.
 name(_Pid)              -> "Local Library using DETS".
 
 stats(Pid)              -> gen_server:call(Pid, stats).
+
+dump_library(Pid)       -> gen_server:call(Pid, dump_library, 60000).
 %%
 
 init([]) ->
-    {ok, Ndb} = dets:open_file("ngrams.dets",[{type, bag}]),
-    {ok, Fdb} = dets:open_file("files.dets", [{type, set}]),
+    DbDir = ?CONFVAL({library,dbdir}, "."),
+    {ok, Ndb} = dets:open_file(DbDir++"/ngrams.dets",[{type, bag}]),
+    {ok, Fdb} = dets:open_file(DbDir++"/files.dets", [{type, set}]),
     ?LOG(info, "Library index contains ~w files", 
                [proplists:get_value(size, dets:info(Fdb), -1)]),
+    % start the scanner (kind of a hack, but deadlock if we do it in init here):
+    self() ! start_scanner,        
     resolver:add_resolver(?MODULE, name(self()), weight(self()), targettime(self()), self()),
     {ok, #state{scanner=undefined, ndb=Ndb, fdb=Fdb}}.
+
+handle_cast(sync, State) -> 
+    dets:sync(State#state.fdb),
+    dets:sync(State#state.ndb),
+    ?LOG(info, "library synced", []),
+    {noreply, State};
 
 handle_cast({resolve, Q, Qpid}, State) ->
     case Q of
@@ -60,34 +74,14 @@ handle_cast({resolve, Q, Qpid}, State) ->
             Now = now(),
             Files = search(clean(Art),clean(Alb),clean(Trk),State),
             Time = timer:now_diff(now(), Now),
-            ?LOG(debug, "Library_dets search took: ~wms for ~s - ~s",[Time/1000, Art, Trk]),
+            ?LOG(info, "Library search took: ~wms for ~s - ~s",[Time/1000, Art, Trk]),
             lists:foreach(Report, Files);
 
         _ -> noop %Unhandled query type
     end,
-    {noreply, State};
+    {noreply, State}.
 
-handle_cast({scan, Dir}, State) ->
-    Pid = spawn_link(scanner, scan_dir, [Dir, self()]),
-    {noreply, State#state{scanner=Pid}}.
-
-handle_call(stats, _From, State) ->
-    NumFiles = proplists:get_value(size, dets:info(State#state.fdb), -1),
-    {reply, [{num_files, NumFiles}], State};
-    
-handle_call(_Msg, _From, State) -> {reply, ok, State}.
-
-handle_info({'EXIT', Pid, Reason}, #state{scanner = Pid} = State) ->
-    io:format("Scanner crashed: ~w~n", [Reason]),
-    {noreply, State#state{scanner=undefined}};
-
-handle_info({scanner, finished}, State) -> 
-    dets:sync(State#state.fdb),
-    dets:sync(State#state.ndb),
-    io:format  ("Scan finished!~n",[]),
-    {noreply, State#state{scanner=undefined}};
-
-handle_info({scanner, {file, File, Mtime, Size, Tags}}, State) when is_list(Tags), is_list(File) ->
+handle_call({add_file, File, Mtime, Size, Tags}, _From, State) when is_list(Tags), is_list(File) ->
     case proplists:get_value(<<"error">>, Tags) of
         undefined ->
             Art = proplists:get_value(<<"artist">>, Tags, <<"">>),
@@ -96,7 +90,7 @@ handle_info({scanner, {file, File, Mtime, Size, Tags}}, State) when is_list(Tags
             Artist = clean(Art),
             Album  = clean(Alb),
             Track  = clean(Trk),
-            FileId = list_to_atom(File),
+            FileId = list_to_atom(File), %TODO this is stupid
             Props = [   {url, proplists:get_value(<<"url">>, Tags, <<"">>)},
                         {artist, Art},
                         {album,  Alb},
@@ -118,13 +112,34 @@ handle_info({scanner, {file, File, Mtime, Size, Tags}}, State) when is_list(Tags
             Track_Ngrams  = [ {{track, list_to_atom(Gram)}, FileId} 
                               || {Gram, _Num} <- ngram(Track)],
             ok = dets:insert(State#state.ndb, Artist_Ngrams),
-            ok = dets:insert(State#state.ndb, Track_Ngrams);
+            ok = dets:insert(State#state.ndb, Track_Ngrams),
+            {reply, ok, State};
         _Err ->
-            noop
-    end,
+            {reply, error, State}
+    end;
 
-    {noreply, State}.
+handle_call({scan, Dir}, From, State) ->
+    spawn(fun()->
+                  gen_server:reply(From, (catch scanner:scan_dir(State#state.scanner, Dir)))
+          end),
+    {noreply, State};
 
+handle_call(stats, _From, State) ->
+    NumFiles = proplists:get_value(size, dets:info(State#state.fdb), -1),
+    {reply, [{num_files, NumFiles}], State};
+    
+handle_call(dump_library, _From, State) ->
+    All = dets:traverse(State#state.fdb, fun({_Fid, X}) -> {continue, X} end),
+    {reply, All, State};
+    
+handle_call(_Msg, _From, State) -> {reply, ok, State}.
+
+handle_info(start_scanner, State) ->
+    ScannerSpec = {scanner, {scanner, start_link, [self()]}, permanent, brutal_kill, worker, [scanner]},
+    {ok, S} = supervisor:start_child(modules_sup, ScannerSpec),
+    {noreply, State#state{scanner=S}};
+
+handle_info(_Msg, State) -> {noreply, State}.
 
 terminate(_Reason, _State) ->
     mnesia:stop(),

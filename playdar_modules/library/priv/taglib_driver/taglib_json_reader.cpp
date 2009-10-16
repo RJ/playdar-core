@@ -60,6 +60,7 @@ string ext2mime(const string& ext)
     if(ext==".aac") return "audio/mp4";
     if(ext==".mp4") return "audio/mp4";
     if(ext==".m4a") return "audio/mp4";
+    if(ext==".ogg") return "application/ogg";
     cerr << "Warning, unhandled file extension. Don't know mimetype for " << ext << endl;
      //generic:
     return "application/octet-stream";
