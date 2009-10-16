@@ -15,7 +15,7 @@ reader_protocols() ->
 % starts sending data to Pid
 run({struct, A}, Pid, Ref) ->
     Url = binary_to_list(proplists:get_value(<<"url">>, A)),
-    ?LOG(info, "Requesting ~p", Url),
+    ?LOG(info, "Requesting ~p", [Url]),
     {ok, Id} = http:request(get, {Url, []}, [], 
                                [{sync, false}, 
                                 {stream, self}, 
