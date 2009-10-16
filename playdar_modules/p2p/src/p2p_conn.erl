@@ -82,7 +82,7 @@ handle_info(auth_timeout, State = #state{authed = false}) -> {stop, normal, Stat
 handle_info({tcp, Sock, Packet}, State = #state{sock=Sock}) ->
     Term = ?B2T(Packet),
     case Term of
-        {sid_response, _, Sid, {data, _}} ->
+        {sid_response, _, _Sid, {data, _}} ->
             ok;
             %?LOG(info, "INCOMING (~p) data packet for ~p", [State#state.name, Sid]);
         _ ->
