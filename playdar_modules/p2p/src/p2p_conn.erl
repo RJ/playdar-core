@@ -83,7 +83,8 @@ handle_info({tcp, Sock, Packet}, State = #state{sock=Sock}) ->
     Term = ?B2T(Packet),
     case Term of
         {sid_response, _, Sid, {data, _}} ->
-            ?LOG(info, "INCOMING (~p) data packet for ~p", [State#state.name, Sid]);
+            ok;
+            %?LOG(info, "INCOMING (~p) data packet for ~p", [State#state.name, Sid]);
         _ ->
             ?LOG(info, "INCOMING (~p)\n~p", [State#state.name, Term])
     end,

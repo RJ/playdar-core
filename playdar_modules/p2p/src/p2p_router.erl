@@ -39,7 +39,10 @@ seen_qid(Qid) -> gen_server:cast(?MODULE, {seen_qid, Qid}).
 %% ====================================================================
 init([Port]) ->
     process_flag(trap_exit, true),
-    Pid = listener_impl:start_link(Port),
+    Pid = case ?CONFVAL({p2p, listen}, true) of
+              true  -> listener_impl:start_link(Port);
+              false -> undefined
+          end,
     % setup regular msgs to aggregate/calculate bandwidth usage:
     timer:send_interval(1000, self(), calculate_bandwidth_secs),
     %timer:send_interval(60000, self(), calculate_bandwidth_mins),
