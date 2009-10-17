@@ -69,7 +69,9 @@ http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
                     Q = qry:q(Qpid),
                     R = {struct,[
                             {"qid", Qid},
-                            {"refresh_interval", 1000},
+                            {"refresh_interval", 1000}, % TODO legacy, to be removed
+							{"poll_interval", 1000},
+							{"poll_limit", 6}, % TODO sum of all targettimes from loaded resolvers
                             {"query", Q},
                             {"results", 
                                 [ {struct, proplists:delete(<<"url">>,L)} || 
