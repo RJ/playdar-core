@@ -59,3 +59,6 @@
     "p2p"
 ]}.
 
+%% Set to true for log output listing query results with scoring information
+{explain, false}.
+
