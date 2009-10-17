@@ -101,7 +101,7 @@ settings = dict()
 settings["_msgtype"] = "settings"
 settings["name"] = "Echo Nest Resolver"
 settings["targettime"] = 5000 # millseconds
-settings["weight"] = 90 # echo nest results aren't as good as friend's results
+settings["weight"] = 50 # echo nest results aren't as good as friend's results
 print_json( settings )
 
 ###################################################################### main loop
