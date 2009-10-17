@@ -34,8 +34,8 @@ dump_library(Pid)       -> gen_server:call(Pid, dump_library, 60000).
 
 init([]) ->
     DbDir = ?CONFVAL({library,dbdir}, "."),
-    {ok, Ndb} = dets:open_file(DbDir++"/ngrams.dets",[{type, bag}]),
-    {ok, Fdb} = dets:open_file(DbDir++"/files.dets", [{type, set}]),
+    {ok, Ndb} = dets:open_file(DbDir++"/library_index.db",[{type, bag}]),
+    {ok, Fdb} = dets:open_file(DbDir++"/library.db", [{type, set}]),
     ?LOG(info, "Library index contains ~w files", 
                [proplists:get_value(size, dets:info(Fdb), -1)]),
     % start the scanner (kind of a hack, but deadlock if we do it in init here):
@@ -90,7 +90,7 @@ handle_call({add_file, File, Mtime, Size, Tags}, _From, State) when is_list(Tags
             Artist = clean(Art),
             Album  = clean(Alb),
             Track  = clean(Trk),
-            FileId = list_to_atom(File), %TODO this is stupid
+            FileId = list_to_binary(File), %TODO hmm.
             Props = [   {url, proplists:get_value(<<"url">>, Tags, <<"">>)},
                         {artist, Art},
                         {album,  Alb},
@@ -184,14 +184,15 @@ search(Art,_Alb,Trk,State) ->
                 [P]-> P
               end || {FileId, _CandScore} <- C ],
     % next do the edit-distance calculation to generate a final score:
+	case ?CONFVAL(explain, false) of
+		true	-> ?LOG(info, "Scoring: ~s - ~s", [Art, Trk]);
+		false	-> ok
+	end,
     Results = [ begin
                     ArtClean = proplists:get_value(artist_clean, FL),
                     TrkClean = proplists:get_value(track_clean, FL),
-                    ArtDist = utils:levenshtein(Art, ArtClean),
-                    TrkDist = utils:levenshtein(Trk, TrkClean),
-                    TLen = length(ArtClean)+length(TrkClean),
-                    TDist = utils:min(TLen, ArtDist + TrkDist),
-                    Score = (TLen - TDist)/TLen,                    
+                    Score = calc_score({ArtClean, Art},
+									   {TrkClean, Trk}),
                     { FL, Score }
                 end
                 || {_FileId, FL} <- Files ],
@@ -199,5 +200,22 @@ search(Art,_Alb,Trk,State) ->
     lists:sublist( lists:reverse( lists:keysort(2,Results) ), 10 ).
 
 
-
-
+% score betweek 0-1 when ArtClean is original, Art is the input/query etc
+calc_score({ArtClean, Art}, {TrkClean, Trk}) ->
+	ArtDist = utils:levenshtein(Art, ArtClean),
+	TrkDist = utils:levenshtein(Trk, TrkClean),
+	% calc 0-1 scores for artist and track match:
+	MaxArt = utils:max(0.001, length(ArtClean)),
+	MaxTrk = utils:max(0.001, length(TrkClean)),
+	ArtScore0 = utils:max(0, length(ArtClean) - ArtDist) / MaxArt,
+	TrkScore0 = utils:max(0, length(TrkClean) - TrkDist) / MaxTrk,
+	% exagerate lower scores
+	ArtScore = 1-math:cos(ArtScore0*math:pi()/2),
+	TrkScore = 1-math:cos(TrkScore0*math:pi()/2),
+	% combine them, weighting artist more than track:
+	Score = (ArtScore + TrkScore)/2.0,
+	case ?CONFVAL(explain, false) of
+		true	-> ?LOG(info, "Score:~f Art:~f Trk:~f\t~s - ~s", [Score, ArtScore, TrkScore, ArtClean, TrkClean]);
+		false	-> ok
+	end,
+	Score.
