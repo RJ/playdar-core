@@ -2,6 +2,7 @@
 
 -behaviour(gen_server).
 -behaviour(playdar_resolver).
+-include("playdar.hrl").
 
 %% playdar_resolver API:
 -export([start_link/1, resolve/3, weight/1, targettime/1, name/1]).
@@ -48,13 +49,14 @@ handle_info({Port, {data, Data}}, #state{port=Port} = State) ->
                 Qpid when is_pid(Qpid) ->
                     case proplists:get_value(<<"results">>, L) of
                         Results when is_list(Results) ->
+                            ?LOG(info, "Got results from script: ~p", [Results]),
                             qry:add_results(Qpid, Results);
                         _ ->
-                            io:format("Script ~s - invalid results returned~n",
-                                      [State#state.name])
+                            ?LOG(warning, "Script ~s - invalid results returned~n", [State#state.name])
                     end,
                     {noreply, State};
                 _ ->
+                    ?LOG(warning, "Script responded with invalid QID", []),
                     {noreply, State}
             end;
         
@@ -67,12 +69,12 @@ handle_info({Port, {data, Data}}, #state{port=Port} = State) ->
             {noreply, State#state{name=Name, weight=Weight, tt=TT}};
 
         _ ->
-            io:format("Unhandled _msgtype for script response: ~s~n",[Data]),
+            ?LOG(warning, "Unhandled _msgtype for script response: ~s~n",[Data]),
             {noreply, State}
     end;
 
 handle_info({'EXIT', Port, Reason}, #state{port = Port} = State) ->
-    io:format("script_resolver, port terminated for script: ~s~n",[State#state.name]),
+    ?LOG(warning, "script_resolver, port terminated for script: ~s~n",[State#state.name]),
     {stop, {port_terminated, Reason}, State}.
 
 terminate({port_terminated, _Reason}, _State) ->    ok;
