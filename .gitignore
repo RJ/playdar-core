@@ -10,3 +10,5 @@ ebin
 *.la
 *.html
 *.conf
+playdar_modules/library/priv/taglib_driver/taglib_json_reader
+erl_crash.dump
