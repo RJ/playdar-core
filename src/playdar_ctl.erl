@@ -46,10 +46,13 @@ cmd([Cmd|Args]) ->
 usage() ->
     io:format("~nUsage: playdarctl <cmd> [<args>..]~n"),
     io:format("~nCommands:~n"),
+	io:format("  start         Start Playdar as background daemon~n"),
+	io:format("  start-debug   Start Playdar as interactive foreground process~n"),
+	io:format("  stop          Stop a running instance~n~n"),
     lists:foreach(fun({Cmd, Desc, _Fun})->
                           Pad = string:chars($\s, 14 - length(Cmd)),
                           io:format("  ~s~s~s~n",[Cmd, Pad, Desc])
-                  end, ets:tab2list(ctlcmds)),
+                  end, [ A || A = {Z,X,C} <- ets:tab2list(ctlcmds), X /= "" ]),
     io:format("~n"),
     ?OK.
 
@@ -64,6 +67,8 @@ register_command(Cmd, Desc, Fun) ->
 
 register_default_commands() ->
     Cmds = [
+		{"stop",
+		 "", fun stop/1},
         {"ping",
          "Ask playdar daemon to pong", fun ping/1 },
         {"status",
@@ -116,6 +121,11 @@ scan([Dir]) ->
 scan(_) ->
     ?WTF.
 
+stop([]) ->
+	% halt in 1 sec, so the rpc call can return OK in the meantime:
+	spawn(fun()-> timer:sleep(1000), halt() end),
+	?OK.
+	
 resolvers([]) ->
     R = resolver:resolvers(),
     io:format("   W    TT   Name~n"),

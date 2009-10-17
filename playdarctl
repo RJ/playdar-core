@@ -1,18 +1,103 @@
 #!/bin/sh
 # 
-# Playdar ctl script for controlling a running playdar instance
+# Playdar ctl script for controlling playdar
 #
+
+. /lib/lsb/init-functions
+
 ORIGDIR=${CWD}
 cd `dirname $0`
 
+ERL=erl
+ERL_OPTS="+K true +P 1000000"
 EBIN=./ebin/
-SNAME=playdar_ctl-`date +%s`
+PLAYDAR_LOG_DIR=.
 
-erl -sname "${SNAME}" \
-    -noinput \
-    -pa "${EBIN}" \
-    -s playdar_ctl \
-    -extra playdar@localhost \
-    "$@"
+ctl ()
+{
+    SNAME=playdar_ctl-`date +%s`
+    $ERL $ERL_OPTS \
+        -sname "${SNAME}" \
+        -noinput \
+        -pa "${EBIN}" \
+        -s playdar_ctl \
+        -extra playdar@localhost \
+        "$@"
+    R=$?
+    if [ $R -eq 0 ]
+    then
+        return 0
+    else
+        if [ ! "$@" = "stop" ]
+        then
+            echo "Usage: playdarctl <start|start-debug|stop|help>"
+            echo "       (additional commands available once playdar is running)"
+        fi
+        exit $R
+    fi
+}
+
+startdebug ()
+{
+    echo "Starting Playdar (debug interactive mode)."
+    echo "NB: to safely exit the erlang shell, type:  q().<enter>"
+    echo "Press any key to continue.."
+    read foo
+    $ERL $ERL_OPTS \
+        -sname playdar@localhost \
+        -pa ebin \
+        -boot start_sasl \
+        -s reloader \
+        -s playdar 
+    return $?
+}
+
+start ()
+{
+    log_daemon_msg "Starting Playdar Daemon"
+    nohup $ERL $ERL_OPTS \
+        -sname playdar@localhost \
+        -detatched -noinput -noshell \
+        -pa ebin \
+        -boot start_sasl \
+        -s playdar 1> $PLAYDAR_LOG_DIR/playdar.log 2> $PLAYDAR_LOG_DIR/playdar.err &
+    # now to check if it spawned ok (within 5 secs):
+    i=5
+    while [ $i -gt 0 ]
+    do
+        pong=`$0 ping`
+        if [ "$pong" = "PONG" ]
+        then
+            log_end_msg 0
+            exit 0
+        fi
+        i=$((i-1))
+        sleep 1
+    done
+    log_end_msg 1
+    exit 1
+}
+
+stop ()
+{
+    log_daemon_msg "Stopping Playdar Daemon"
+    ctl stop
+    if [ $? -eq 0 ]
+    then
+        sleep 1
+        log_end_msg 0
+        return 0
+    else
+        log_end_msg 1
+        return 1
+    fi
+}
+
+case "$@" in
+    'start') start;;
+    'start-debug') startdebug;;
+    'stop')  stop;;
+    *) ctl "$@";;
+esac
 
 cd "${ORIGDIR}"
