@@ -2,10 +2,16 @@
 
 {port, 60211}.
 
+% Should our servent listen for incoming connections?
+% set to false if you only wish to make outgoing connections.
+% Useful if you know your firewall won't allow incoming connections.
+
+{listen, true}.
+
 % Peers to connect to on startup.
 
 {peers,[
-    {"joe.example.com", 60210},
+    {"joe.example.com", 60211},
     {"mike.example.com", 9999}
 ]}.
 
@@ -22,3 +28,4 @@
 % of C will not be exposed to A.
 
 {rewrite_identity, false}.
+
