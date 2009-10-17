@@ -48,7 +48,7 @@ init([]) ->
     % and this one maps Source IDs to query pids
     Tid2= ets:new(sources, []),
     % Load script-resolvers:
-    Scripts = [ "/home/rj/src/playdar/contrib/demo-script/demo-resolver.php" ],
+    Scripts = ?CONFVAL(scripts, []),
     ScriptSpecs = [ {list_to_atom(Script), 
                      {script_resolver, start_link, [Script]}, 
                      transient, 5, worker, [script_resolver]} 
