@@ -1,5 +1,6 @@
 -module(playdar_auth).
 -behaviour(gen_server).
+-include("playdar.hrl").
 
 %% API
 -export([start_link/0, gen_formtoken/0, consume_formtoken/1, 
@@ -36,7 +37,8 @@ revoke(Token) when is_binary(Token) ->
 %% gen_server callbacks
 
 init([]) ->
-    {ok, D} = dets:open_file("auth.db",[]),
+    Dir = ?CONFVAL(authdbdir, "."),
+    {ok, D} = dets:open_file(Dir ++ "/auth.db",[]),
     {ok, #state{    
                     tokdb=ets:new(tokdb,[]), 
                     authdb=D
