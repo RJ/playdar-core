@@ -3,7 +3,24 @@
 # Playdar ctl script for controlling playdar
 #
 
-. /lib/lsb/init-functions
+if [ -e /lib/lsb/init-functions ]
+then
+    . /lib/lsb/init-functions
+else
+log_daemon_msg ()
+{
+    echo $@
+}
+log_end_msg ()
+{
+    if [ $@ -eq 0 ]
+    then
+        echo "OK"
+    else
+        echo "ERROR"
+    fi
+}
+fi
 
 ORIGDIR=${CWD}
 cd `dirname $0`
