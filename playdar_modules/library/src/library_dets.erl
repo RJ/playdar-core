@@ -34,8 +34,8 @@ dump_library(Pid)       -> gen_server:call(Pid, dump_library, 60000).
 
 init([]) ->
     DbDir = ?CONFVAL({library,dbdir}, "."),
-    {ok, Ndb} = dets:open_file(DbDir++"/ngrams.dets",[{type, bag}]),
-    {ok, Fdb} = dets:open_file(DbDir++"/files.dets", [{type, set}]),
+    {ok, Ndb} = dets:open_file(DbDir++"/library_index.db",[{type, bag}]),
+    {ok, Fdb} = dets:open_file(DbDir++"/library.db", [{type, set}]),
     ?LOG(info, "Library index contains ~w files", 
                [proplists:get_value(size, dets:info(Fdb), -1)]),
     % start the scanner (kind of a hack, but deadlock if we do it in init here):
@@ -90,7 +90,7 @@ handle_call({add_file, File, Mtime, Size, Tags}, _From, State) when is_list(Tags
             Artist = clean(Art),
             Album  = clean(Alb),
             Track  = clean(Trk),
-            FileId = list_to_atom(File), %TODO this is stupid
+            FileId = list_to_binary(File), %TODO hmm.
             Props = [   {url, proplists:get_value(<<"url">>, Tags, <<"">>)},
                         {artist, Art},
                         {album,  Alb},
