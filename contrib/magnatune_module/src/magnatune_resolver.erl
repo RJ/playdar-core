@@ -99,7 +99,7 @@ process_line(Device, N, LibPid) ->
 				 {<<"album">>,  	list_to_binary(Album)},
 				 {<<"track">>,		list_to_binary(Track)},
 				 {<<"trackno">>,	list_to_integer(TrkNo)},
-				 {<<"bitrate">>,	128000},
+				 {<<"bitrate">>,	128},
 				 {<<"duration">>,	list_to_integer(Duration)},
 				 {<<"mimetype">>,   <<"audio/mpeg">>},
 				 {<<"url">>,        list_to_binary(Url)}				
