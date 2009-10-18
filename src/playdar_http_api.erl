@@ -31,8 +31,13 @@ http_req(Req, DocRoot) ->
                     respond(Req, R)
             end;
 
-        _ -> http_req_authed(Req, DocRoot, M, Qs, Auth)
-
+        _ ->
+			case Auth of
+				Props when is_list(Props) ->
+					http_req_authed(Req, DocRoot, M, Qs, Auth);
+				undefined ->
+					Req:respond({403, [], <<"<h1>Not Authorised</h1>">>})
+			end
     end.
     
 
