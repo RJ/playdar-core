@@ -185,6 +185,14 @@ loop1(Req, DocRoot) ->
         io:format("static:~s~n",[StaticFile]),
             Req:serve_file("static/" ++ StaticFile, DocRoot);
 
+		"crossdomain.xml" ->
+			case ?CONFVAL(crossdomain, false) of
+				true ->
+					Req:serve_file("crossdomain.xml", DocRoot);
+				false ->
+					Req:not_found()
+			end;
+		
         % hand off dynamically:
         _ -> 
             case http_registry:get_handler(Req:get(path)) of

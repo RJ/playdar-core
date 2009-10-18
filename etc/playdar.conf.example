@@ -54,6 +54,10 @@
     {docroot, "priv/www"}
 ]}.
 
+%% Set to true to serve up docroot/crossdomain.xml
+
+{crossdomain, false}.
+
 %% List of module DIRECTORY NAMES that should not be loaded automatically:
 {modules_blacklist, [
     "p2p"
