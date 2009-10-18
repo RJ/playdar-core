@@ -44,6 +44,8 @@ handle_call({scan_file, File}, _From, State) ->
                 {ok, Tags} ->
                     library_dets:add_file(State#state.libpid, File, Mtime, Size, Tags),
                     {reply, ok, State1};
+				{error, scanner_crashed} -> {reply, {error, scanner_crashed}, State#state{port=undefined}};
+				{error, scanner_bug}     -> {reply, {error, scanner_bug}, State#state{port=undefined}};
                 {error, R} ->
                     {reply, {error, R}, State1}
             end;
