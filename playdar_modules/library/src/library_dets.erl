@@ -12,7 +12,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% Records
--record(state, {scanner, ndb, fdb}).
+-record(state, {scanner, ndb, fdb, customname}).
 
 %%
 
@@ -32,6 +32,16 @@ stats(Pid)              -> gen_server:call(Pid, stats).
 dump_library(Pid)       -> gen_server:call(Pid, dump_library, 60000).
 %%
 
+% Non-standard init, when used by proxy for another type of library:
+init([Name]) when is_list(Name) ->
+    DbDir = ?CONFVAL({library,dbdir}, "."),
+    {ok, Ndb} = dets:open_file(DbDir++"/"++Name++"_index.db",[{type, bag}]),
+    {ok, Fdb} = dets:open_file(DbDir++"/"++Name++".db", [{type, set}]),
+    ?LOG(info, "Library index (for ~s) contains ~w files", 
+               [Name, proplists:get_value(size, dets:info(Fdb), -1)]),
+    {ok, #state{scanner=undefined, ndb=Ndb, fdb=Fdb, customname=Name}};
+
+% Default init, when acting as normal library resolver
 init([]) ->
     DbDir = ?CONFVAL({library,dbdir}, "."),
     {ok, Ndb} = dets:open_file(DbDir++"/library_index.db",[{type, bag}]),
@@ -41,7 +51,7 @@ init([]) ->
     % start the scanner (kind of a hack, but deadlock if we do it in init here):
     self() ! start_scanner,        
     resolver:add_resolver(?MODULE, name(self()), weight(self()), targettime(self()), self()),
-    {ok, #state{scanner=undefined, ndb=Ndb, fdb=Fdb}}.
+    {ok, #state{scanner=undefined, ndb=Ndb, fdb=Fdb, customname=""}}.
 
 handle_cast(sync, State) -> 
     dets:sync(State#state.fdb),
@@ -53,6 +63,10 @@ handle_cast({resolve, Q, Qpid}, State) ->
     case Q of
         {struct, Mq} -> % Mq is a proplist
             Hostname = ?CONFVAL(name, "unknown"),
+			Name = case State#state.customname of
+					   "" -> Hostname;
+					   C  -> Hostname ++ "/" ++ C
+				   end,
             Report = fun({Props, Score}) ->
                 Rep =   {struct, [
                                 {<<"artist">>, proplists:get_value(artist, Props)},
@@ -64,7 +78,7 @@ handle_cast({resolve, Q, Qpid}, State) ->
                                 {<<"duration">>, proplists:get_value(duration, Props)},
                                 {<<"bitrate">>, proplists:get_value(bitrate, Props)},
                                 {<<"size">>, proplists:get_value(size, Props)},
-                                {<<"source">>, list_to_binary(Hostname)}
+                                {<<"source">>, list_to_binary(Name)}
                             ]},
                 qry:add_result(Qpid, Rep)                
             end,
