@@ -35,31 +35,40 @@ echo_nest_config.OBEY_RATE_LIMIT = False
 
 # given an 
 def get_tracks(artist_name, track_name):
-    tracks = []
-    artists = artist_api.search_artists(artist_name)
-    for artist in artists:
-        for audio in artist.audio(1000):
-            if 'title' in audio and fuzzy_match(track_name, audio['title']):
-                if is_live(audio['url']):
-                    track = {}
-                    track['artist'] = audio['artist']
-                    track['track'] = audio['title']
-                    track['album'] = audio['release']
-                    track['url'] = audio['url']
-                    track['duration'] = audio['length']
-                    # Is the best source 'echonest' or the blog
-                    # where the track was found?
-                    track['source'] = 'echo nest'
+    try:
+        print >>sys.stderr, 'EN searching for', artist_name, track_name, '\r'
+        tracks = []
+        artists = artist_api.search_artists(artist_name)
+        for artist in artists:
+            print >>sys.stderr, 'EN artist', artist.name, '\r'
+            for audio in artist.audio(1000):
+                if 'title' in audio and fuzzy_match(track_name, audio['title']):
+                    print >>sys.stderr, 'EN audio', audio['title'], '\r'
+                    if is_live(audio['url']):
+                        track = {}
+                        track['artist'] = audio['artist']
+                        track['track'] = audio['title']
+                        track['album'] = audio['release']
+                        track['url'] = audio['url']
+                        track['duration'] = audio['length']
+                        # Is the best source 'echonest' or the blog
+                        # where the track was found?
+                        track['source'] = 'echo nest'
 
-                    # BUG: need a better score
-                    track['score'] = 0.99
-                    tracks.append(track)
-                    # if we found one we are done:
-                    return tracks;
+                        # BUG: need a better score
+                        track['score'] = 0.99
+                        tracks.append(track)
+                        # if we found one we are done:
+                        print >>sys.stderr, 'EN found track', track['url'] , '\r'
+                        return tracks;
+    except:
+        print >>sys.stderr, 'EN had an error', '\r'
+    print >>sys.stderr, 'EN found nothing', '\r'
     return tracks
 
 
 def is_live(url):
+
     try:
         socket.setdefaulttimeout(5)
         f = urllib.urlopen(url)
@@ -107,6 +116,10 @@ print_json( settings )
 ###################################################################### main loop
 while 1:
     length = sys.stdin.read(4)
+
+    if not length:
+        break;
+
     length = unpack('!L', length)[0]
     if not length:
         break
