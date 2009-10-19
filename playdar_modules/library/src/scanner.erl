@@ -44,6 +44,8 @@ handle_call({scan_file, File}, _From, State) ->
                 {ok, Tags} ->
                     library_dets:add_file(State#state.libpid, File, Mtime, Size, Tags),
                     {reply, ok, State1};
+				{error, scanner_crashed} -> {reply, {error, scanner_crashed}, State#state{port=undefined}};
+				{error, scanner_bug}     -> {reply, {error, scanner_bug}, State#state{port=undefined}};
                 {error, R} ->
                     {reply, {error, R}, State1}
             end;
@@ -60,7 +62,7 @@ handle_info(port_idle, #state{port=Port, lasttime=LT} = State) when is_port(Port
     case Diff > (1000*?IDLE_TIMEOUT) of
         true  ->
             ?LOG(info, "Stopping scanner binary, idle timeout reached.",[]),
-            port_close(Port), 
+            (catch port_close(Port)), 
             {noreply, State#state{port=undefined}};
         false -> {noreply, State}
     end;
@@ -73,7 +75,8 @@ handle_info({'EXIT', Port, Reason}, State) when is_port(Port) ->
 
 handle_info(_Msg, State) -> {noreply, State}.
 
-terminate(_Reason, #state{port = Port} = _State) when is_port(Port) ->     port_close(Port), ok;
+terminate(_Reason, #state{port = Port} = _State) when is_port(Port) -> 
+	(catch port_close(Port)), ok;
 terminate(_Reason, _State) -> ok.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -127,6 +130,6 @@ readtags(File, Port) ->
     
     after 60000 ->
             ?LOG(error, "Scanner timedout reading: ~s", [File]),
-            port_close(Port),
+            (catch port_close(Port)),
             {error, timeout}
     end.

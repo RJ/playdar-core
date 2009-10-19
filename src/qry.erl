@@ -2,7 +2,7 @@
 -module(qry).
 -behaviour(gen_server).
 -include("playdar.hrl").
--define(MIN_SCORE, 0.5).
+-define(MIN_SCORE, 0.6).
 
 %% API
 -export([start/1, start/2]).
