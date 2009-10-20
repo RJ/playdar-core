@@ -50,7 +50,10 @@ init([]) ->
     %?LOG(info, "Starting modules: ~p", [Specs]),
     case Specs of
         [] -> ignore;
-        _  -> {ok,{{one_for_one,0,1}, Specs}}
+        _  -> {ok,
+                {{one_for_one,
+                  length(Specs), 1} %Limit worker restarts to 1x(resolver count) per second.
+                , Specs}}
     end.
 
 %% ====================================================================
@@ -95,7 +98,7 @@ process_module(Mod) ->
                 true  ->
                     {Mod, 
                       {Mod, start_link, []}, 
-                      transient, 5, worker, [Mod]};
+                      permanent, 5, worker, [Mod]};
                 false -> undefined
             end
     end.
