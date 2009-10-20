@@ -1,3 +1,9 @@
+v=3.81
+ifeq ($(filter $(v),$(firstword $(sort $(MAKE_VERSION) $(v)))),)
+$(error Sorry, Playdar requires GNU Make >= $(v))
+endif
+
+######################################################################## setup
 ERLCFLAGS = -pa ebin +debug_info -W -I include
 .DEFAULT_GOAL = all
 .PHONY: all clean
