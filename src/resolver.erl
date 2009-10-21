@@ -3,29 +3,45 @@
 -behaviour(gen_server).
 -include("playdar.hrl").
 %% API
--export([start_link/0, dispatch/2, dispatch/3, qid2pid/1, sid2pid/1, 
+-export([start_link/0, dispatch/1, dispatch/2, sid2qid/1, 
          resolvers/0, register_sid/2, add_resolver/5, resolver_pid/1,
-         queries/0]).
+         queries/0, add_query_timer/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
      terminate/2, code_change/3]).
 
--record(state, {queries, sources, resolvers}).
--record(resolver, {mod, name, weight, targettime, pid}).
+-record(state,    {queries, sources, resolvers}).
+
+-record(rq,      {qry,       % the #qry struct
+                  solved,    % bool - seen a 1.0 result
+                  ctime,     % creation time
+                  callbacks, % list of funs
+                  results,   % list of results
+                  timers     % used during pipeline for dispatching
+                 }).
+
+-record(resolver, {mod, name, weight, targettime, pid}). %TODO localonly, preference
 
 %% API
 start_link()        -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 % dispatch a Query, returns the query pid
-dispatch(Q, Qid)        -> dispatch(Q, Qid, []).
-dispatch(Q, Qid, Cbs)   -> gen_server:call(?MODULE, {dispatch, Q, Qid, Cbs}).
-qid2pid(Qid)            -> gen_server:call(?MODULE, {qid2pid, Qid}).
-sid2pid(Sid)            -> gen_server:call(?MODULE, {sid2pid, Sid}).
-register_sid(Sid, Qpid) -> gen_server:cast(?MODULE, {register_sid, Sid, Qpid}).
+dispatch(Qry)           -> dispatch(Qry, []).
+dispatch(Qry, Callbacks)-> gen_server:call(?MODULE, {dispatch, Qry, Callbacks}).
+
+% associate a source id with a query id:
+register_sid(Sid, Qid)  -> gen_server:cast(?MODULE, {register_sid, Sid, Qid}).
+% lookup associated qid for a sid
+sid2qid(Sid)            -> gen_server:call(?MODULE, {sid2qid, Sid}).
+
+% list all loaded resolvers
 resolvers()             -> gen_server:call(?MODULE, resolvers).
+% list all active query ids
 queries()               -> gen_server:call(?MODULE, queries).
 
+% add a timer, which will be cancelled if the query is marked as solved
+add_query_timer(Qid, Tref) -> gen_server:cast(?MODULE, {add_query_timer, Qid, Tref}).
 
 % Helper function, handy for getting pid of library for scanning.
 resolver_pid(Mod)  -> 
@@ -35,15 +51,21 @@ resolver_pid(Mod)  ->
         [List] -> proplists:get_value(pid,List)
     end.
 
+% resolver modules call this to register themselves, get added to the pipeline:
 add_resolver(Mod, Name, Weight, TargetTime, Pid) ->
     gen_server:cast(?MODULE,{add_resolver, Mod, Name, Weight, TargetTime, Pid}).
 
+
+
 %% gen_server callbacks
+
+
+
 init([]) ->
 	{R1,R2,R3} = now(),
 	random:seed(R1,R2,R3),
     process_flag(trap_exit, true),
-    % This ets maps Qids to query pids:
+    % This ets maps Qids to query objs:
     Tid = ets:new(queries, []),
     % and this one maps Source IDs to query pids
     Tid2= ets:new(sources, []),
@@ -67,7 +89,7 @@ init([]) ->
                     resolvers=[]}}.
 
 handle_call(queries, _From, State) ->
-    {reply, ets:tab2list(State#state.queries), State};
+    {reply, [Qid||{Qid,_RQ} <- ets:tab2list(State#state.queries)], State};
     
 handle_call(resolvers, _From, State) ->
     % the #resolver record is internal to this module
@@ -78,40 +100,43 @@ handle_call(resolvers, _From, State) ->
              {targettime, R#resolver.targettime},
              {pid, R#resolver.pid}] || R <- State#state.resolvers ],
     {reply, Res, State};
-
-handle_call({qid2pid, Qid}, _From, State) ->
-    case ets:lookup(State#state.queries, {qid, Qid}) of
-        [{_, Pid}] ->
-            {reply, Pid, State};
-        _ ->
+    
+handle_call({sid2qid, Sid}, _From, State) ->
+    case ets:lookup(State#state.sources, Sid) of
+        [{Sid, Qid}] ->
+            {reply, Qid, State};
+        [] ->
             {reply, undefined, State}
     end;
     
-handle_call({sid2pid, Sid}, _From, State) ->
-    case ets:lookup(State#state.sources, {sid, Sid}) of
-        [{_, Pid}] ->
-            {reply, Pid, State};
-        _ ->
-            {reply, undefined, State}
-    end;
-    
-handle_call({dispatch, Q, Qid, Cbs}, _From, State) ->
+handle_call({dispatch, Qry, Callbacks}, _From, State) ->
+    Qid = Qry#qry.qid,
 	% First of all, do nothing if a query with this Qid already exists:
-	case ets:lookup(State#state.queries, {qid, Qid}) of
-		[{_,P}] when is_pid(P) ->
-			{reply, P, State};
+	case ets:lookup(State#state.queries, Qid) of
+		[{Qid,_RQ}] ->
+			{reply, Qid, State};
 		_ ->
-			% spawn a qry process to hold this query:
-			{ok, Pid} = gen_server:start(qry, [Q, Qid], []),
-			% register callbacks before triggering search:
-			lists:foreach(fun(C) -> qry:add_result_callback(Pid, C) end, Cbs),
-			% keep track of qid -> qry_pid
-			ets:insert(State#state.queries, {{qid, Qid}, Pid}),
+            % dispatch the qry:
+            RQ  = #rq{qry=Qry, solved=false, ctime=erlang:localtime(), 
+                      callbacks=Callbacks, timers=[], results=[]},
+            ets:insert(State#state.queries, {Qid, RQ}),
 			% dispatch to resolvers
-			start_resolver_pipeline(Q, Pid, State#state.resolvers),
-			{reply, Pid, State}
+			start_resolver_pipeline(Qry, State#state.resolvers),
+			{reply, Qid, State}
 	end.
 
+
+handle_cast({add_query_timer, Qid, Tref}, State) ->
+    case ets:lookup(State#state.queries, Qid) of
+        [{Qid, RQ}] ->
+            % update the RQ with an additional timer reference
+            % we cancel this tref if solved->true, which stops the pipeline.
+            RQ1 = RQ#rq{timers = [Tref | RQ#rq.timers]},
+            ets:insert(State#state.queries, {Qid, RQ1}),
+            {noreply, State};
+        [] ->
+            {noreply, State}
+    end;            
 
 handle_cast({add_resolver,Mod, Name, Weight, TargetTime, Pid}, State) ->
     link(Pid),
@@ -122,9 +147,9 @@ handle_cast({add_resolver,Mod, Name, Weight, TargetTime, Pid}, State) ->
     Resolvers = lists:reverse(lists:keysort(4, [R|State#state.resolvers])),
     {noreply, State#state{resolvers=Resolvers}};
 
-handle_cast({register_sid, Sid, Qpid}, State) ->
-    ?LOG(debug, "Register sid: ~p to qpid: ~p",[Sid, Qpid]),
-    ets:insert(State#state.sources, {{sid, Sid}, Qpid}),
+handle_cast({register_sid, Sid, Qid}, State) ->
+    ?LOG(debug, "Register sid: ~p to qpid: ~p",[Sid, Qid]),
+    ets:insert(State#state.sources, {Sid, Qid}),
     {noreply, State}.
 
 handle_info({'EXIT', Pid, _Reason}, State) ->
@@ -144,27 +169,32 @@ code_change(_OldVsn, State, _Extra) ->
 
 %%% Internal functions
 
-start_resolver_pipeline(Q, Qpid, Resolvers) ->
-    start_resolver_pipeline(Q, Qpid, Resolvers, {-1, -1}).
+% TODO make this process persist for the duration of the pipeline, instead of
+% using timer callbacks. Then register/kill this pid when solved=true instead
+% of cancelling a bunch of timers. Seems like it would be more elegant.
+start_resolver_pipeline(Qry, Resolvers) when is_record(Qry, qry) ->
+    spawn(fun()->
+                  start_resolver_pipeline(Qry, Resolvers, {-1, -1})
+          end).
 
-start_resolver_pipeline(_, _, [], _) -> ok;
+start_resolver_pipeline(_, [], _) -> ok;
 
-start_resolver_pipeline(Q, Qpid, [H|Resolvers], {LastWeight, LastTime}) ->
+start_resolver_pipeline(Qry, [H|Resolvers], {LastWeight, LastTime}) when is_record(Qry, qry) ->
     case LastWeight of
         -1 -> % first iteration
-            (H#resolver.mod):resolve(H#resolver.pid, Q, Qpid),
-            start_resolver_pipeline(Q, Qpid, Resolvers, {H#resolver.weight, H#resolver.targettime});
+            (H#resolver.mod):resolve(H#resolver.pid, Qry),
+            start_resolver_pipeline(Qry, Resolvers, {H#resolver.weight, H#resolver.targettime});
         _  -> 
             if
                 LastWeight == H#resolver.weight ->
                     % same weight, dispatch immediately
-                    (H#resolver.mod):resolve(H#resolver.pid, Q, Qpid),
-                    start_resolver_pipeline(Q, Qpid, Resolvers, {LastWeight, utils:min(H#resolver.targettime, LastTime)});
+                    (H#resolver.mod):resolve(H#resolver.pid, Qry),
+                    start_resolver_pipeline(Qry, Resolvers, {LastWeight, utils:min(H#resolver.targettime, LastTime)});
                 true ->
                     % dispatch after delay, save timer ref for possible cancellation if solved
-                    {ok, Tref} = timer:apply_after(LastTime, H#resolver.mod, resolve, [H#resolver.pid, Q, Qpid]),
-                    qry:add_timer(Qpid, Tref),
-                    start_resolver_pipeline(Q, Qpid, Resolvers, {H#resolver.weight, H#resolver.targettime})
+                    {ok, Tref} = timer:apply_after(LastTime, H#resolver.mod, resolve, [H#resolver.pid, Qry]),
+                    add_query_timer(Qry#qry.qid, Tref),
+                    start_resolver_pipeline(Qry, Resolvers, {H#resolver.weight, H#resolver.targettime})
             end
     end.
 

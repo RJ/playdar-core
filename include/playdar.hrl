@@ -9,3 +9,9 @@
 -define(OK, 0).
 -define(ERROR, 1).
 -define(WTF, 99).
+
+% project-wide struct
+-record(qry,      {qid,      % query id
+                   obj,      % json obj
+                   local     % true if local user created it, false if via lan etc
+                  }).
