@@ -3,12 +3,21 @@
 
 http_req(Req, DocRoot) ->
     Qs = Req:parse_qs(),
+	JsonP = proplists:get_value("jsonp", Qs, ""),
     M = proplists:get_value("method", Qs),
     Auth = playdar_auth:check_auth(proplists:get_value("auth",Qs,"")),
+	% If you are using jsonp callbacks, we verify your authcode:
+	Authenticated = case JsonP of
+						"" -> {true, []};
+						_  -> case Auth of
+								  A when is_list(A) -> {true, A};
+								  undefined -> {false, []}
+							  end
+					end,
     case M of
         "stat" ->
-            case Auth of
-                Props when is_list(Props) ->
+            case Authenticated of
+                {true, _Props} ->
                     R = {struct,[   
                             {"name", <<"playdar">>},
                             {"version", <<"0.1.0">>},
@@ -22,7 +31,7 @@ http_req(Req, DocRoot) ->
                             %]}}
                         ]},
                     respond(Req, R);
-                undefined ->
+                {false, _} ->
                     R = {struct, [
                             {"name", <<"playdar">>},
                             {"version", <<"0.1.0">>},
@@ -32,10 +41,11 @@ http_req(Req, DocRoot) ->
             end;
 
         _ ->
-			case Auth of
-				Props when is_list(Props) ->
-					http_req_authed(Req, DocRoot, M, Qs, Auth);
-				undefined ->
+			% for all methods other than stat, require auth if jsonp= is used.
+			case Authenticated of
+				{true, AuthProps} ->
+					http_req_authed(Req, DocRoot, M, Qs, AuthProps);
+				{false, _} ->
 					Req:respond({403, [], <<"<h1>Not Authorised</h1>">>})
 			end
     end.
