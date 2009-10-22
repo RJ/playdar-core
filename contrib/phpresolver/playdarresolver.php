@@ -156,7 +156,7 @@ class ExamplePHPResolver extends PlaydarResolver
         if(soundex($request->track)!=soundex('hiding in your insides')) return array();
         $pi = new stdclass;
         $pi->artist = "Mokele";
-        $pi->track = "Hiding In Your Insides";
+        $pi->track = "Hiding In Your Insides (php)";
         $pi->album = "You Yourself are Me Myself and I am in Love";
         $pi->source = "Mokele.co.uk";
         $pi->size = 4971780;
