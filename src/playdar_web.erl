@@ -185,7 +185,7 @@ loop1(Req, DocRoot) ->
             Req:serve_file("static/" ++ StaticFile, DocRoot);
 
 		"crossdomain.xml" ->
-			case ?CONFVAL(crossdomain, false) of
+			case ?CONFVAL(crossdomain, true) of
 				true ->
 					Req:serve_file("crossdomain.xml", DocRoot);
 				false ->
