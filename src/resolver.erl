@@ -150,7 +150,48 @@ handle_cast({add_resolver,Mod, Name, Weight, TargetTime, Pid}, State) ->
 handle_cast({register_sid, Sid, Qid}, State) ->
     ?LOG(debug, "Register sid: ~p to qpid: ~p",[Sid, Qid]),
     ets:insert(State#state.sources, {Sid, Qid}),
-    {noreply, State}.
+    {noreply, State};
+
+% resolvers call this to report new results:
+handle_cast({add_results, Qid, Results}, State) ->
+    ResultFun = fun({struct, R}, {Rs, Sol, Sids}) ->
+                    % decide if this solves the qry
+                    {Solved, R1} = case proplists:get_value(<<"score">>, R) of
+                                    undefined ->
+                                        % calculate the score based on strings TODO
+                                        {false, [ {<<"score">>, 0.123} | R ]};
+                                    1.0 ->
+                                        {true, R};
+                                    _ ->
+                                        {false, R}
+                                   end,
+                    % add a sid if one doesnt exist
+                    {R2, Sid} = case proplists:get_value(<<"sid">>, R1) of
+                                    undefined ->
+                                        Uuid = utils:uuid_gen(),
+                                        {[{<<"sid">>, Uuid} | R1], Uuid};
+                                    S ->
+                                        {R1, S}
+                                end,                             
+                    {[{struct, R1}|Rs], Sol or Solved, [Sid|Sids]}
+                end,
+    
+    case ets:lookup(State#state.queries, Qid) of
+        [{Qid, RQ}] ->
+            ?LOG(debug, "add_results ~s (~w)",  [Qid, length(Results)]),
+            % TODO ignore stuff below MIN_SCORE ?
+            {Results1, Solved, Sids} = lists:foldl(ResultFun, {[], false, []}, Results),
+            % add new results, and update the "solved" field if appropriate
+            RQ1 = RQ#rq{results = Results1 ++ RQ#rq.results,
+                        solved = RQ#rq.solved or Solved},
+            ets:insert(State#state.queries, {Qid, RQ1}),
+            % register the new SIDs
+            ets:insert(State#state.sources, [ {Sid, Qid} || Sid <- Sids]),
+            {noreply, State};
+        [] ->
+            ?LOG(warning, "add_results to invalid QID ~s",  [Qid]),
+            {noreply, State}
+    end.
 
 handle_info({'EXIT', Pid, _Reason}, State) ->
     % remove this crashed resolver from our list,
