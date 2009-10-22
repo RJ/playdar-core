@@ -94,11 +94,13 @@ process_module(Mod) ->
             end,
             case lists:member(playdar_resolver, Behaviours) of 
                 % if it's a playdar_resolver, supervise it, it will
-                % register itself on startup:
+                % register itself on startup.
+                % They are transient so they can exit normally and not be restarted,
+                % eg, your credentials are wrong, or it's misconfigured etc.
                 true  ->
                     {Mod, 
                       {Mod, start_link, []}, 
-                      permanent, 5, worker, [Mod]};
+                      transient, 5, worker, [Mod]};
                 false -> undefined
             end
     end.
