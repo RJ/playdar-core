@@ -182,7 +182,6 @@ loop1(Req, DocRoot) ->
 
         % serve any file under /static/ verbatim
         "static/" ++ StaticFile ->
-        io:format("static:~s~n",[StaticFile]),
             Req:serve_file("static/" ++ StaticFile, DocRoot);
 
 		"crossdomain.xml" ->
@@ -207,8 +206,10 @@ loop1(Req, DocRoot) ->
 %% Internal API
   
 render(Req, File, Vars) ->
-    ok = erlydtl:compile(File, tpl_index),
-    {ok, HtmlIO} =  tpl_index:render(Vars),
+    % if render is crashing, Vars is probably invalid:
+    %?LOG(info, "render(~s) ~p", [File, Vars]),
+    ok = erlydtl:compile(File, tpl), % TODO compiled templates could be cached
+    {ok, HtmlIO} =  tpl:render(Vars),
     Html = lists:flatten(HtmlIO),
     Req:ok({"text/html",[{"Server", "Playdar"}],Html}).
 

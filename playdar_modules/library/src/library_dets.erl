@@ -227,7 +227,11 @@ calc_score({ArtClean, Art}, {TrkClean, Trk}) ->
 	ArtScore = 1-math:cos(ArtScore0*math:pi()/2),
 	TrkScore = 1-math:cos(TrkScore0*math:pi()/2),
 	% combine them, weighting artist more than track:
-	Score = (ArtScore + TrkScore)/2.0,
+    Score0 = (ArtScore + TrkScore)/2.0,
+    Score = case  Score0 > 0.99 of
+                true  -> 1.0;
+                false -> Score0
+            end,
 	case ?CONFVAL(explain, false) of
 		true	-> ?LOG(info, "Score:~f Art:~f Trk:~f\t~s - ~s", [Score, ArtScore, TrkScore, ArtClean, TrkClean]);
 		false	-> ok
