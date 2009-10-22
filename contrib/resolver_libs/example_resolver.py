@@ -1,14 +1,15 @@
 #!/usr/bin/python
-class ExampleResolver(PlaydarResolver):
+# In your etc/playdar.conf scripts section, add "contrib/resolver_libs/example_respolver.py"
+# to see this in action.
+import playdar_resolver
+from playdar_resolver import soundex
+
+class ExampleResolver(playdar_resolver.PlaydarResolver):
 	def resolver_settings(self):
 		"""My settings"""
 		return {'name':"Example Python Resolver"}
 
 	def results(self, query):
-		debug(query['artist'])
-		debug(soundex(query['track']))
-		debug(soundex('hiding in your insides'))
-		
 		if query['artist'].lower() != 'mokele':
 			return []
 		if soundex(query['track']) != soundex('hiding in your insides'):

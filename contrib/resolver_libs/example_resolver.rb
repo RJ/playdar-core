@@ -1,4 +1,8 @@
 #!/usr/bin/env ruby
+# In your etc/playdar.conf, add "contrib/resolver_libs/example_resolver.rb"
+# to see this in action.
+require File.dirname(__FILE__) + '/playdar_resolver'
+
 class ExampleResolver < PlaydarResolver
   def resolver_settings() {:name => "Example Ruby Resolver"} end
   def results(query)
