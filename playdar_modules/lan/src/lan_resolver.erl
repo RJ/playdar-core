@@ -63,9 +63,10 @@ handle_cast({resolve, Q, Qpid}, State) ->
 	% Ignore if we've dealt with this qid already
 	case ets:lookup(State#state.seenqids, Qid) of
 		[{Qid, true}] -> 
+			?LOG(info, "LAN ignoring dispatch request for duplicate qid: ~s",[Qid]),
 			{noreply, State};
 		_ ->
-            ?LOG(info, "LAN dispatching query", []),
+            ?LOG(info, "LAN dispatching query ~s", [Qid]),
 			ets:insert(State#state.seenqids, {Qid,true}),
 			Msg = {struct, [ {<<"_msgtype">>, <<"rq">>},{<<"qid">>,Qid} | Parts ]},
 			gen_udp:send(State#state.sock, State#state.broadcast, State#state.port, mochijson2:encode(Msg)),
@@ -73,7 +74,7 @@ handle_cast({resolve, Q, Qpid}, State) ->
 	end;
  
 handle_cast({send_response, A, Qid, Ip, Port}, State) ->
-    ?LOG(debug, "sending response for qry ~s to ~w", [Qid, Ip]),
+    ?LOG(info, "sending response for qry ~s to ~p", [Qid, Ip]),
     {struct, Parts} = A,
     Hostname = ?CONFVAL(name, ""),
     Msg = {struct, [    {<<"_msgtype">>, <<"result">>},
@@ -89,29 +90,13 @@ handle_cast({send_response, A, Qid, Ip, Port}, State) ->
     gen_udp:send(State#state.sock, Ip, Port, mochijson2:encode(Msg)),
     {noreply, State}.
 
-% could me a msg from broadcast socket, or private one (meaning a direct reply):
-handle_info({udp, _Sock, {A,B,C,D}=Ip, _InPortNo, Packet}, State) ->
-    ?LOG(debug, "received msg: ~s", [Packet]),
+% msg on the broadcast socket = a new incoming query
+handle_info({udp, Sock, Ip, _InPortNo, Packet}, State = #state{sock=Sock}) ->
     {struct, L} = mochijson2:decode(Packet),
     case proplists:get_value(<<"_msgtype">>,L) of
-        <<"result">> ->
-            Qid = proplists:get_value(<<"qid">>, L),
-            case resolver:qid2pid(Qid) of
-                Qpid when is_pid(Qpid) ->
-                    {struct, L2} = proplists:get_value(<<"result">>, L),
-                    HttpPort = proplists:get_value(<<"port">>, L, 60210),
-                    Sid = proplists:get_value(<<"sid">>, L2),
-                    Url = io_lib:format("http://~w.~w.~w.~w:~w/sid/~s",
-                                        [A,B,C,D,HttpPort,Sid]),
-                    qry:add_result(Qpid, {struct, 
-                                          [{<<"url">>, list_to_binary(Url)}|L2]}),
-                    {noreply, State};
-                _ ->
-                    {noreply, State}
-            end;
-        
         <<"rq">> ->
             Qid = proplists:get_value(<<"qid">>, L),
+			?LOG(info, "received query from ~p, ~s: ~s", [Ip, Qid, Packet]),
             % do nothing if we dispatched, or already received this qid
             case ets:lookup(State#state.seenqids, Qid) of
                 [{Qid, true}] -> {noreply, State};
@@ -124,8 +109,32 @@ handle_info({udp, _Sock, {A,B,C,D}=Ip, _InPortNo, Packet}, State) ->
             end;
             
         _ -> {noreply, State}
-    end.
-    
+    end;
+
+% msg on the direct socket = a direct response to us from a query
+handle_info({udp, Sock, {A,B,C,D}=Ip, _InPortNo, Packet}, State = #state{sockp=Sock}) ->
+    {struct, L} = mochijson2:decode(Packet),
+    case proplists:get_value(<<"_msgtype">>,L) of
+        <<"result">> ->
+            Qid = proplists:get_value(<<"qid">>, L),
+			?LOG(info, "received result from ~p, ~s: ~s", [Ip, Qid, Packet]),
+            case resolver:qid2pid(Qid) of
+                Qpid when is_pid(Qpid) ->
+                    {struct, L2} = proplists:get_value(<<"result">>, L),
+					DefPort = proplists:get_value(port, ?CONFVAL(web, []), 60210),
+                    HttpPort = proplists:get_value(<<"port">>, L, DefPort),
+                    Sid = proplists:get_value(<<"sid">>, L2),
+                    Url = io_lib:format("http://~w.~w.~w.~w:~w/sid/~s",
+                                        [A,B,C,D,HttpPort,Sid]),
+                    qry:add_result(Qpid, {struct, 
+                                          [{<<"url">>, list_to_binary(Url)}|L2]}),
+                    {noreply, State};
+                _ ->
+                    {noreply, State}
+            end;
+		_ -> {noreply, State}
+	end.
+
 terminate(_Reason, State) ->
     gen_udp:close(State#state.sock),
     ok.
