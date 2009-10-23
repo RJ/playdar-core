@@ -86,10 +86,10 @@ loop1(Req, DocRoot) ->
                     case proplists:get_value("json", Qs) of 
                         undefined ->
                             FormVars= [
-                                       {"receiverurl", proplists:get_value("receiverurl",Qs)},
+                                       {"receiverurl", proplists:get_value("receiverurl",Qs,"")},
                                        {"formtoken", Ftok},
-                                       {"website", proplists:get_value("website", Qs)},
-                                       {"name", proplists:get_value("name", Qs)}
+                                       {"website", proplists:get_value("website", Qs,"")},
+                                       {"name", proplists:get_value("name", Qs, "")}
                                       ],
                             render(Req, DocRoot ++ "/auth.html", [{formvars, FormVars}]);
 
@@ -113,15 +113,15 @@ loop1(Req, DocRoot) ->
                     % create the entry in the auth db:
                     AuthCode = utils:uuid_gen(),
                     % m_pauth->create_new(tok, req.postvar("website"), req.postvar("name"), req.useragent() );
-                    playdar_auth:create(AuthCode, [ {website, proplists:get_value("website",Qs)},
-                                            {name, proplists:get_value("name",Qs)}
+                    playdar_auth:create(AuthCode, [ {website, proplists:get_value("website",Qs, "")},
+                                            {name, proplists:get_value("name",Qs, "")}
                                           ]),
-                    case proplists:get_value("receiverurl",Qs,"") of
+                    case proplists:get_value("receiverurl",Qs, "") of
                         "" ->
-                            case proplists:get_value("json", Qs) of 
+                            case proplists:get_value("json", Qs, "") of 
                                 undefined ->
-                                    Vars = [    {website,proplists:get_value("website",Qs)},
-                                                {name,proplists:get_value("name",Qs)},
+                                    Vars = [    {website,proplists:get_value("website",Qs, "")},
+                                                {name,proplists:get_value("name",Qs, "")},
                                                 {authcode, AuthCode}
                                            ],
                                     render(Req, DocRoot ++ "/auth.na.html", Vars);
