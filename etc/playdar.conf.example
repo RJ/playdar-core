@@ -27,14 +27,16 @@
 %%%      {dirs, ["/home/joe/music", "/mnt/music"]}.
 %%%
 
-%% By default your hostname will be used:
+%% Set a name, to be used on the LAN/etc:
+
 %%{name, "Captain Kirk"}.
 
 %% List of scripts to be started (resolver scripts)
-%%
+%% You need quotes. You need a trailing comma, EXCEPT the last one in the list!
+
 {scripts,[
     %"/path/to/a/resolver/script1.py",
-    %"/path/to/a/resolver/script2.py"
+    %"/path/to/a/resolver/script2.rb"
 ]}.
  
 %% Settings for the Playdar webserver.
@@ -47,6 +49,7 @@
 %%
 %% "0.0.0.0" means listen on all interfaces, and is recommended.
 %% 
+
 {web,[
     {port, 60210},
     {max, 100},
@@ -54,15 +57,17 @@
     {docroot, "priv/www"}
 ]}.
 
-%% Set to true to serve up docroot/crossdomain.xml
+%% Set to true to serve up docroot/crossdomain.xml (defaults to true)
 
-{crossdomain, false}.
+{crossdomain, true}.
 
 %% List of module DIRECTORY NAMES that should not be loaded automatically:
+
 {modules_blacklist, [
-    "p2p"
+    "playdar-tcp"
 ]}.
 
 %% Set to true for log output listing query results with scoring information
+
 {explain, false}.
 
