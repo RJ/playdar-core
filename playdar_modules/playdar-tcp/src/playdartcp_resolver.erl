@@ -36,6 +36,9 @@ init([]) ->
     resolver:add_resolver(?MODULE, name(self()), weight(self()), targettime(self()), self()),
     % Register our web request handler (for our localhost web gui)
     http_registry:register_handler("playdartcp", fun playdartcp_web:http_req/2, "playdartcp Connection Status Page", "/playdartcp"),
+	% register our ctl cmd:
+	playdar_ctl:register_command("peers", "List current playdartcp connections",
+							 fun peers/1),
     {ok, #state{ seenqids=ets:new(seenqids,[]) }}.
 
 handle_call(_Request, _From, State) ->
@@ -70,4 +73,13 @@ playdartcp_reader({struct, A}, Pid, Ref) ->
 	end.
 	
 	
-	
+%% playdar_ctl stuff
+
+peers([]) ->
+	Peers = playdartcp_router:peers(),
+	lists:foreach(fun({Name, Pid, {WeShare, TheyShare}})->
+						  io:format("~20.s  ~p  ~p / ~p~n",
+									[Name, Pid, WeShare, TheyShare])
+				  end, Peers),
+	?OK.
+
