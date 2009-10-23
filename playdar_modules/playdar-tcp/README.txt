@@ -1,23 +1,36 @@
-Playdar p2p resolver
+playdar-tcp resolver
 ====================
-This resolver starts a p2p servent and can accept and make connections with
-other peers. Queries are broadcast to all connected peers.
-Queries, results and content streams are multiplexed down a single connection.
+This resolver allows you to link two playdar installs via a TCP connection.
+This is more efficient than HTTP and allows you to easily tunnel your home
+playdar (via ssh) to your work machine, for example.
 
-This is a work in progress, not suitable for large networks atm.
+It is also hoped that people will host playdar nodes with large free repos,
+such as magnatune, archive.org etc. This resolver would be useful for that.
 
-TODO
-----
-* flow control/bandwidth metering.
-* UPnP router port-fwd autosetup. Probably using a C prog as driver.
-* refwd/cancel/configuration to allow darknet style network.
-* XMPP integration for finding hosts and bootstrapping the network.
+Currently streams are multiplexed (with no flow control) down the same pipe
+as queries, so you will notice whilst streaming over a low bandwidth link
+that queries can't be recieved at the same time. (will be fixed "soon").
+
+***ATTENTION***
+
+By default this resolver will not handle incoming queries - if you are sure
+you want to share your library via this resolver, edit the config file.
+
+Edit playdartcp.conf.example and save as "playdartcp.conf" in your Playdar
+etc directory.
+
 
 Usage
 -----
-p2p_router:connect("peername_or_ip", 60210).
-p2p_router:peers().
+From the erl shell, you can connect to your home machine like so:
 
-Although the defaults are all sensible and no config is needed, refer to
-p2p.conf.example and make your own etc/p2p.conf if you like.
+ playdartcp_router:connect("myhomepc.example.com", 60211, true).
+
+IP addresses or hostnames are valid.
+The last parameter (true/false) indicates whether you want to share you content
+with the node you're connecting to.
+
+To see who you're connected to, check the playdartcp page on:
+
+ http://localhost:60210/
 

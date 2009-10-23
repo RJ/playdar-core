@@ -1,0 +1,46 @@
+% Should our node listen for incoming connections?
+
+{listen, false}.
+
+% Port servent listens on. Only matters if "{listen, true}." is specified
+% This must be a different port to the web port (60210).
+% (You may need to set up a port-fwd on your home router to accept connections)
+
+{port, 60211}.
+
+% Do we share our content with other playdars that connect to us?
+% Defaults to false - set to true if you know that everyone who can connect to
+% your machine is authorised to play the music you have. Respect copyright!
+% This can also be configured on a per-connection basis, so you can connect out
+% to peers offering free content (magnatune etc) without sharing, and connect 
+% to your own playdar at home with sharing turned on just for you.
+
+{share, false}.
+
+
+% Peers to connect to on startup.
+
+{peers,[
+%    {"joe.example.com", 60211},
+%    {"mike.example.com", 9999}
+]}.
+
+
+% Should queries be fwded to other active playdar-tcp connections?
+
+{fwd, false}.
+
+% Query broadcast delay (ms) for query fwding 
+% Recommended default 500. Only matters if "{fwd, true}." is specified.
+
+{fwd_delay, 500}.
+
+% Should we rewrite identity of peers when acting as a proxy
+% This defaults to false for now, meaning if three ppl are connected in a chain
+% like so: A::B::C, A will see that results came from C (altho B still acts as
+% a proxy so the IP address of C is hidden from A). If Rewriting is enabled,
+% B will rewrite responses so that results appear to come from B, and the name
+% of C will not be exposed to A. (This is normal behaviour for a darknet).
+
+{rewrite_identity, false}.
+
