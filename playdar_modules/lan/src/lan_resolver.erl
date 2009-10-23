@@ -17,7 +17,7 @@
 -record(state, {sock, sockp, seenqids, broadcast, port}).
 
 -define(BROADCAST, {239,255,0,1}). % default, can be changed in config
--define(PORT, 60210). % can be changed in config
+-define(PORT, ?DEFAULT_WEB_PORT).  % can be changed in config
 
 %% API
 start_link()            -> gen_server:start_link(?MODULE, [], []).
@@ -82,9 +82,10 @@ handle_cast({send_response, A, Qid, Ip, Port}, State) ->
                         {<<"result">>, 
                          {struct, [
                                    {<<"source">>, list_to_binary(Hostname)},
-                                   {<<"port">>, ?CONFVAL({web, port}, 60210)} |
+                                   {<<"port">>, ?CONFVAL({web, port}, ?DEFAULT_WEB_PORT)} |
                                    proplists:delete(<<"url">>,
-                                    proplists:delete(<<"source">>,Parts))
+                                    proplists:delete(<<"source">>,
+                                     proplists:delete(<<"port">>, Parts)))
                          ]}}
                     ]},
     gen_udp:send(State#state.sock, Ip, Port, mochijson2:encode(Msg)),
@@ -96,11 +97,13 @@ handle_info({udp, Sock, Ip, _InPortNo, Packet}, State = #state{sock=Sock}) ->
     case proplists:get_value(<<"_msgtype">>,L) of
         <<"rq">> ->
             Qid = proplists:get_value(<<"qid">>, L),
-			?LOG(info, "received query from ~p, ~s: ~s", [Ip, Qid, Packet]),
             % do nothing if we dispatched, or already received this qid
             case ets:lookup(State#state.seenqids, Qid) of
-                [{Qid, true}] -> {noreply, State};
-                _ ->           
+                [{Qid, true}] -> 
+                    ?LOG(info, "ignoring dupe query from ~p, ~s ~s", [Ip, Qid, Packet]),
+                    {noreply, State};
+                _ ->
+                    ?LOG(info, "received query from ~p, ~s: ~s", [Ip, Qid, Packet]),
                     ets:insert(State#state.seenqids, {Qid,true}),
                     This = self(),
                     Cbs = [ fun(Ans)-> ?MODULE:send_response(This, Ans, Qid, Ip, State#state.port) end ],
@@ -117,17 +120,26 @@ handle_info({udp, Sock, {A,B,C,D}=Ip, _InPortNo, Packet}, State = #state{sockp=S
     case proplists:get_value(<<"_msgtype">>,L) of
         <<"result">> ->
             Qid = proplists:get_value(<<"qid">>, L),
-			?LOG(info, "received result from ~p, ~s: ~s", [Ip, Qid, Packet]),
             case resolver:qid2pid(Qid) of
                 Qpid when is_pid(Qpid) ->
+                    ?LOG(info, "received result from ~p, ~s: ~s", [Ip, Qid, Packet]),
                     {struct, L2} = proplists:get_value(<<"result">>, L),
-					DefPort = proplists:get_value(port, ?CONFVAL(web, []), 60210),
-                    HttpPort = proplists:get_value(<<"port">>, L, DefPort),
-                    Sid = proplists:get_value(<<"sid">>, L2),
-                    Url = io_lib:format("http://~w.~w.~w.~w:~w/sid/~s",
-                                        [A,B,C,D,HttpPort,Sid]),
-                    qry:add_result(Qpid, {struct, 
-                                          [{<<"url">>, list_to_binary(Url)}|L2]}),
+                    % if this result came with an URL, honor it, else build one.
+                    % (yes, it's possible to respond with an external web url,
+                    %  but is not normally considered correct behaviour --
+                    %  playdar nodes should typically proxy everything)
+                    case proplists:get_value(<<"url">>, L2) of
+                        undefined ->
+					        DefPort = proplists:get_value(port, ?CONFVAL(web, []), ?DEFAULT_WEB_PORT),
+                            HttpPort = proplists:get_value(<<"port">>, L, DefPort),
+                            Sid = proplists:get_value(<<"sid">>, L2),
+                            Url = io_lib:format("http://~w.~w.~w.~w:~w/sid/~s",
+                                                [A,B,C,D,HttpPort,Sid]),
+                            qry:add_result(Qpid, {struct, 
+                                                  [{<<"url">>, list_to_binary(Url)}|L2]});
+                        _Url ->
+                            qry:add_result(Qpid, {struct, L2})
+                    end,                            
                     {noreply, State};
                 _ ->
                     {noreply, State}

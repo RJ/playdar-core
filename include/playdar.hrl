@@ -9,3 +9,6 @@
 -define(OK, 0).
 -define(ERROR, 1).
 -define(WTF, 99).
+
+-define(DEFAULT_WEB_PORT, 60210).
+
