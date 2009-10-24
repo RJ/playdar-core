@@ -1,3 +1,5 @@
+Playdar
+=======
 Playdar is a music content resolver, written in Erlang, MIT licensed.
 It's modular and can be extended using resolver scripts in any language.
 It has an HTTP API to answer the question "can i play this song?".
@@ -8,15 +10,26 @@ For more information see: http://www.playdar.org/
 
 Building
 --------
-To build everything (you need erlang, taglib, gcc):
+To build all the erlang code:
 
- $ make
+    $ make
+
+To build the collection scanner (needs taglib, g++):
+
+    $ make scanner
 
 Running
 -------
 
- $ ./playdarctl start-debug
+    $ ./playdarctl start-debug
 
+In another terminal you can now do:
+
+    $ ./playdarctl numfiles
+    $ ./playdarctl scan "/path/to/music"
+    $ ./playdarctl numfiles
+
+Then check out http://localhost:60210/ and http://www.playdar.org/demos/
 
 Understanding Playdar
 =====================
@@ -146,13 +159,4 @@ and getting json in response, you inject a script tag into the dom like this:
 Playdar responds with the json object wrapped in your padding:
  my_callback(...normal json response...);
 which then fires the my_callback function - voilia, cross domain RPC.
-
-
-
-
-
-
-
-
-
 
