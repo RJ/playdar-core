@@ -9,13 +9,16 @@
 #include <taglib/fileref.h>
 #include <taglib/tag.h>
 
-#include <iostream>
 #include <cstdio>
 #include <sstream>
 #include <algorithm>
 #include <string>
 
+#ifdef WIN32
+#include <Winsock2.h>
+#else
 #include <netinet/in.h> // for htonl etc
+#endif
 
 using namespace std;
 
@@ -108,7 +111,6 @@ string esc(const string& s)
     return r;
 }
 
-
 string scan_file(const char* path)
 {
     TagLib::FileRef f(path);
@@ -136,7 +138,7 @@ string scan_file(const char* path)
         string mimetype = ext2mime(ext);
         // turn it into a url by prepending file://
         // because we pass all urls to curl:
-        string urlpath = urlify( toUtf8(path) );
+        string urlpath = urlify( path );
 
         ostringstream os;
         os      <<  "{  \"url\" : \"" << esc(urlpath) << "\","
@@ -154,28 +156,6 @@ string scan_file(const char* path)
     return "{\"error\" : \"no tags\"}\n";
 }
 
-int readn(unsigned char *buf, int len)
-{
-    int i, got = 0;
-    do 
-    {
-        if((i=read(0,buf+got, len-got))<=0) return i;
-        got += i;
-    } while(got<len);
-    return len;
-}
-
-int writen(unsigned char *buf, int len)
-{
-  int i, wrote = 0;
-  do {
-    if ((i = write(1, buf+wrote, len-wrote)) <= 0) return i;
-    wrote += i;
-  } while (wrote<len);
-  return len;
-}
-
-
 #ifdef WIN32
 int wmain(int argc, wchar_t* argv[])
 #else
@@ -183,20 +163,28 @@ int main(int argc, char* argv[])
 #endif
 {
     //scan_file( argv[1] );
-    unsigned char buffer[256];
+    char buffer[256];
     unsigned int len0,len;
+
     while(1)
     {
-        if(readn((unsigned char*)&len0,4)!=4) break;
+        if(fread(&len0, 4, 1, stdin)!=1) break;
         len = ntohl(len0);
-        readn((unsigned char*)&buffer, len);
+
+        fread(&buffer, 1, len, stdin);
         buffer[len]='\0';
+
         string j = scan_file((const char*)&buffer);
+
+// newlines 
+#ifdef WIN32 
+        unsigned int l = htonl(j.length()+1);
+#else
         unsigned int l = htonl(j.length());
-        writen((unsigned char*)&l,4);
+#endif
+        fwrite(&l,4,1,stdout);
         printf("%s", j.c_str());
-        cout.flush();
+        fflush(stdout);
     }
-
+    return 0;
 }
-
