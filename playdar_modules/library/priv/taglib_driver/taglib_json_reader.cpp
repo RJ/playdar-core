@@ -15,6 +15,7 @@
 #include <string>
 
 #ifdef WIN32
+#pragma comment(lib, "ws2_32.lib")
 #include <Winsock2.h>
 #else
 #include <netinet/in.h> // for htonl etc
@@ -51,7 +52,7 @@ string urlify(const string& p)
     }
     else if (p.at(1)==':') // windows style filepath
     {
-        urlpath += "/" + p;
+        urlpath += p;
     }
     else urlpath = p;
     return urlpath;
