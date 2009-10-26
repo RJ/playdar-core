@@ -130,9 +130,8 @@ handle_cast({send_query_response, {struct, Parts}, Qid, Name}, State) ->
             {noreply, State}
     end;
 
-handle_cast({resolve, Q, Qpid}, State) ->
+handle_cast({resolve, #qry{ obj = Q, qid = Qid }}, State) ->
     {struct, Parts} = Q,
-    Qid = qry:qid(Qpid),
     % Ignore if we've dealt with this qid already
     case ets:lookup(State#state.seenqids, Qid) of
         [{_,true}] -> 

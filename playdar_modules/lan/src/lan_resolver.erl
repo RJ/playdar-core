@@ -8,7 +8,7 @@
 -behaviour(playdar_resolver).
 
 %% API
--export([start_link/0, resolve/3, weight/1, targettime/1, name/1, send_response/5]).
+-export([start_link/0, resolve/2, weight/1, targettime/1, name/1, send_response/5]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -21,7 +21,7 @@
 
 %% API
 start_link()            -> gen_server:start_link(?MODULE, [], []).
-resolve(Pid, Q, Qpid)   -> gen_server:cast(Pid, {resolve, Q, Qpid}).
+resolve(Pid, Qry)       -> gen_server:cast(Pid, {resolve, Qry}).
 weight(_Pid)            -> 95.
 targettime(_Pid)        -> 50.
 name(_Pid)              -> "Lan".
@@ -57,9 +57,8 @@ handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
 
-handle_cast({resolve, Q, Qpid}, State) ->
+handle_cast({resolve, #qry{obj = Q, qid = Qid}}, State) ->
     {struct, Parts} = Q,
-	Qid = qry:qid(Qpid),
 	% Ignore if we've dealt with this qid already
 	case ets:lookup(State#state.seenqids, Qid) of
 		[{Qid, true}] -> 
@@ -107,7 +106,8 @@ handle_info({udp, Sock, Ip, _InPortNo, Packet}, State = #state{sock=Sock}) ->
                     ets:insert(State#state.seenqids, {Qid,true}),
                     This = self(),
                     Cbs = [ fun(Ans)-> ?MODULE:send_response(This, Ans, Qid, Ip, State#state.port) end ],
-                    resolver:dispatch({struct,L}, Qid, Cbs),
+					Qry = #qry{obj = {struct, L}, qid = Qid, local = false},
+                    resolver:dispatch(Qry, Cbs),
                     {noreply, State}
             end;
             
@@ -120,27 +120,26 @@ handle_info({udp, Sock, {A,B,C,D}=Ip, _InPortNo, Packet}, State = #state{sockp=S
     case proplists:get_value(<<"_msgtype">>,L) of
         <<"result">> ->
             Qid = proplists:get_value(<<"qid">>, L),
-            case resolver:qid2pid(Qid) of
-                Qpid when is_pid(Qpid) ->
-                    ?LOG(info, "received result from ~p, ~s: ~s", [Ip, Qid, Packet]),
-                    {struct, L2} = proplists:get_value(<<"result">>, L),
-                    % if this result came with an URL, honor it, else build one.
-                    % (yes, it's possible to respond with an external web url,
-                    %  but is not normally considered correct behaviour --
-                    %  playdar nodes should typically proxy everything)
-                    case proplists:get_value(<<"url">>, L2) of
-                        undefined ->
-					        DefPort = proplists:get_value(port, ?CONFVAL(web, []), ?DEFAULT_WEB_PORT),
-                            HttpPort = proplists:get_value(<<"port">>, L, DefPort),
-                            Sid = proplists:get_value(<<"sid">>, L2),
-                            Url = io_lib:format("http://~w.~w.~w.~w:~w/sid/~s",
-                                                [A,B,C,D,HttpPort,Sid]),
-                            qry:add_result(Qpid, {struct, 
-                                                  [{<<"url">>, list_to_binary(Url)}|L2]});
-                        _Url ->
-                            qry:add_result(Qpid, {struct, L2})
-                    end,                            
-                    {noreply, State};
+			?LOG(info, "received result from ~p, ~s: ~s", [Ip, Qid, Packet]), 
+			case proplists:get_value(<<"result">>, L) of
+				{struct, L2} ->
+					% if this result came with an URL, honor it, else build one.
+					% (yes, it's possible to respond with an external web url,
+					%  but is not normally considered correct behaviour --
+					%  playdar nodes should typically proxy everything)
+					case proplists:get_value(<<"url">>, L2) of
+						undefined ->
+							DefPort = proplists:get_value(port, ?CONFVAL(web, []), ?DEFAULT_WEB_PORT),
+							HttpPort = proplists:get_value(<<"port">>, L, DefPort),
+							Sid = proplists:get_value(<<"sid">>, L2),
+							Url = io_lib:format("http://~w.~w.~w.~w:~w/sid/~s",
+												[A,B,C,D,HttpPort,Sid]),
+							resolver:add_results(Qid, {struct, 
+												  		[{<<"url">>, list_to_binary(Url)}|L2]});
+						_Url ->
+							resolver:add_results(Qid, {struct, L2})
+					end,                            
+					{noreply, State};
                 _ ->
                     {noreply, State}
             end;

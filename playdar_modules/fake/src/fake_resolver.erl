@@ -4,7 +4,7 @@
 -behaviour(playdar_resolver).
 
 %% API
--export([start_link/0, resolve/3, weight/1, targettime/1, name/1]).
+-export([start_link/0, resolve/2, weight/1, targettime/1, name/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -14,7 +14,7 @@
 
 %% API
 start_link()            -> gen_server:start_link(?MODULE, [], []).
-resolve(Pid, Q, Qpid)   -> gen_server:cast(Pid, {resolve, Q, Qpid}).
+resolve(Pid, Qry)       -> gen_server:cast(Pid, {resolve, Qry}).
 weight(_Pid)            -> 50.
 targettime(_Pid)        -> 25.
 name(_Pid)              -> "Fake Mokele Resolver".
@@ -28,7 +28,7 @@ handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
 
-handle_cast({resolve, Q, Qpid}, State) ->
+handle_cast({resolve, #qry{obj = Q, qid = Qid}}, State) ->
     case Q of
         {struct, Mq} -> % Mq is a proplist
             case string:to_lower(
@@ -39,10 +39,9 @@ handle_cast({resolve, Q, Qpid}, State) ->
                                 {<<"track">>,  <<"Hiding in your Insides!">>},
                                 {<<"album">>,  <<"">>},
                                 {<<"score">>, 0.2},
-                                {<<"url">>, <<"file:///tmp/test.txt">>}
-								%{<<"url">>, <<"http://www.playdar.org/hiding.mp3">>}
+								{<<"url">>, <<"http://www.playdar.org/hiding.mp3">>}
                             ]},
-                    qry:add_result(Qpid, Rep);
+					resolver:add_results(Qid, Rep);
                 _ -> noop
             end;
         _ -> noop

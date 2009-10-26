@@ -7,15 +7,18 @@
 %% playdar_reader exports:
 -export([reader_protocols/0]).
 
--export([start_link/0, resolve/3, weight/1, targettime/1, name/1, playdartcp_reader/3, reader_start_link/3]).
+-export([start_link/0, resolve/2, weight/1, targettime/1, name/1, 
+		 playdartcp_reader/3, reader_start_link/3]).
+
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
+		 terminate/2, code_change/3]).
 
 -record(state, {seenqids}).
 
 start_link()            -> gen_server:start_link({local,?MODULE},?MODULE,[],[]).
 
-resolve(_Pid, Q, Qpid)  -> gen_server:cast(playdartcp_router, {resolve, Q, Qpid}).
+resolve(_Pid, Qry)      -> gen_server:cast(playdartcp_router, {resolve, Qry}).
 weight(_Pid)            -> 60.
 targettime(_Pid)        -> 1000.
 name(_Pid)              -> "playdartcp".
@@ -65,10 +68,10 @@ playdartcp_reader({struct, A}, Pid, Ref) ->
 	[Sid, Name] = string:tokens(Rest, "\t"),
 	?LOG(info, "Requesting playdartcp stream for '~p' from '~p'", [Sid, Name]),
 	%TODO name2pid
-	case proplists:get_value(Name, playdartcp_router:peers()) of
-		P when is_pid(P) ->
+	case lists:keysearch(Name, 1, playdartcp_router:peers()) of
+		{value, {Name, P, _Sharing}} ->
 			playdartcp_conn:request_sid(P, list_to_binary(Sid), Pid, Ref);
-		undefined ->
+		false ->
 			Pid ! {Ref, error, wtf}
 	end.
 	

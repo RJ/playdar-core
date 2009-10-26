@@ -5,7 +5,7 @@
 -behaviour(playdar_resolver).
 
 %% API
--export([start_link/0, resolve/3, weight/1, targettime/1, name/1, dump_library/1]).
+-export([start_link/0, resolve/2, weight/1, targettime/1, name/1, dump_library/1]).
 -export([scan/2, stats/1, add_file/5, sync/1 ]).
 
 %% gen_server callbacks
@@ -22,7 +22,7 @@ scan(Pid, Dir)          -> gen_server:call(Pid, {scan, Dir}, infinity).
 add_file(Pid, F, Mtime, Size, L) -> gen_server:call(Pid, {add_file, F, Mtime, Size, L}, 60000).
 sync(Pid)               -> gen_server:cast(Pid, sync).
   
-resolve(Pid, Q, Qpid)   -> gen_server:cast(Pid, {resolve, Q, Qpid}).
+resolve(Pid, Qry)       -> gen_server:cast(Pid, {resolve, Qry}).
 weight(_Pid)            -> 100.
 targettime(_Pid)        -> 20.
 name(_Pid)              -> "Local Library using DETS".
@@ -59,8 +59,8 @@ handle_cast(sync, State) ->
     ?LOG(info, "library synced", []),
     {noreply, State};
 
-handle_cast({resolve, Q, Qpid}, State) ->
-    case Q of
+handle_cast({resolve, Qry = #qry{qid = Qid, obj = Obj}}, State) ->
+    case Obj of
         {struct, Mq} -> % Mq is a proplist
             Hostname = ?CONFVAL(name, "unknown"),
 			Name = case State#state.customname of
@@ -80,7 +80,7 @@ handle_cast({resolve, Q, Qpid}, State) ->
                                 {<<"size">>, proplists:get_value(size, Props)},
                                 {<<"source">>, list_to_binary(Name)}
                             ]},
-                qry:add_result(Qpid, Rep)                
+				resolver:add_results(Qid, Rep)           
             end,
             Art = proplists:get_value(<<"artist">>,Mq,<<"">>),
             Trk = proplists:get_value(<<"track">>,Mq,<<"">>),

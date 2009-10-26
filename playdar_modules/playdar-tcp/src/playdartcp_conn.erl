@@ -111,14 +111,14 @@ handle_info({tcp, Sock, Packet}, State = #state{sock=Sock}) ->
 
 % Refwd query that originally arrived at this connection
 % but only if not already solved!
-handle_info({fwd_query, Qid, Qpid, Rq}, State = #state{authed=true}) ->
-    case qry:solved(Qpid) of
+handle_info({fwd_query, #qry{qid=Qid, obj=Q}}, State = #state{authed=true}) ->
+    case resolver:solved(Qid) of
         true ->
             ?LOG(info, "Not fwding query ~p already solved", [Qid]),
             {noreply, State};
         false ->
             ?LOG(info, "Fwding query ~p to peers", [Qid]),
-            M = {rq, Qid, playdartcp_router:sanitize_msg(Rq)},
+            M = {rq, Qid, playdartcp_router:sanitize_msg(Q)},
             % send to all except ourselves (we are the query origin)
             playdartcp_router:broadcast(M, self()),
             {noreply, State}
@@ -176,17 +176,18 @@ handle_packet({auth, Name, Props}, State = #state{sock=Sock, authed=false}) when
     end;
 
 %% Incoming query:
-handle_packet({rq, Qid, Rq={struct, L}}, State = #state{authed=true, weshare=true}) when is_list(L) ->
+handle_packet({rq, Qid, {struct, L}}, State = #state{authed=true, weshare=true}) when is_list(L) ->
     ?LOG(info, "Got a RQ: ~p", [L]),
 	playdartcp_router:seen_qid(Qid),
     % do nothing if we dispatched, or already received this qid
     case ets:lookup(State#state.seenqids, Qid) of
         [{Qid, true}] -> 
             {noreply, State};
-        _ ->           
+        [] ->           
             ets:insert(State#state.seenqids, {Qid,true}),
             Cbs = [ fun(Ans)-> playdartcp_router:send_query_response(Ans, Qid, State#state.name) end ],
-            Qpid = resolver:dispatch(Rq, Qid, Cbs),
+			Qry = #qry{obj = {struct, L}, qid = Qid, local = false},
+            resolver:dispatch(Qry, Cbs),
             % Schedule this query to be sent to all other peers after a delay.
             % When the time is up, the query will be fwded ONLY IF the query is
             % still in an unsolved state.
@@ -197,7 +198,7 @@ handle_packet({rq, Qid, Rq={struct, L}}, State = #state{authed=true, weshare=tru
             case ?CONFVAL({playdartcp, fwd}, false) of
                 true ->
                     Delay = ?CONFVAL({playdartcp, fwd_delay},500),
-                    timer:send_after(Delay, self(), {fwd_query, Qid, Qpid, Rq}), 
+                    timer:send_after(Delay, self(), {fwd_query, Qry}), 
                     {noreply, State};
                 _ ->
                     {noreply, State}
@@ -206,26 +207,20 @@ handle_packet({rq, Qid, Rq={struct, L}}, State = #state{authed=true, weshare=tru
 
 %% Incoming answer to a query:
 handle_packet({result, Qid, {struct, L}}, State = #state{authed=true}) when is_list(L) ->
-    case resolver:qid2pid(Qid) of
-        Qpid when is_pid(Qpid) ->
-            Sid = proplists:get_value(<<"sid">>, L),
-            Url = io_lib:format("playdartcp://~s\t~s", [Sid, State#state.name]),
-            qry:add_result(Qpid, {struct, 
-                                  [{<<"url">>, list_to_binary(Url)}|L]}),
-            {noreply, State};
-        _ ->
-            {noreply, State}
-    end;
+	Sid = proplists:get_value(<<"sid">>, L),
+	Url = io_lib:format("playdartcp://~s\t~s", [Sid, State#state.name]),
+	resolver:add_results(Qid, {struct, 
+							   [{<<"url">>, list_to_binary(Url)}|L]}),
+	{noreply, State};
 
 handle_packet({request_sid, Ref, Sid}, State = #state{authed=true, weshare=true}) ->
-	case resolver:sid2pid(Sid) of
+	case resolver:result(Sid) of
 		undefined ->
             ?LOG(info,"sid not found: ~p", [Sid]),
 			Msg = ?T2B({sid_response, Ref, Sid, {error, 404}}),
 			ok = gen_tcp:send(State#state.sock, Msg),
 			{noreply, State};
-		Qpid ->
-			{struct, L} = qry:result(Qpid, Sid),
+		{struct, L} when is_list(L) ->
 			Url = proplists:get_value(<<"url">>, L),
             ?LOG(info, "Sid ~p has Url: ~p", [Sid, Url]), 
 			case Url of
@@ -236,7 +231,7 @@ handle_packet({request_sid, Ref, Sid}, State = #state{authed=true, weshare=true}
 					{noreply, State};
 				_ ->
                     ConnPid = self(),
-					spawn(fun()->stream_result(Ref, Sid, State#state.sock, Qpid, ConnPid)end),
+					spawn(fun()->stream_result(Ref, Sid, State#state.sock, ConnPid)end),
 					{noreply, State}			
 			end
 	end;
@@ -266,8 +261,8 @@ handle_packet(Data, State) ->
     {noreply, State}.
 
 
-stream_result(Ref, Sid, Sock, Qpid, ConnPid) ->
-	A = qry:result(Qpid, Sid),
+stream_result(Ref, Sid, Sock, ConnPid) ->
+	A = resolver:result(Sid),
 	case playdar_reader_registry:get_streamer(A, self(), Ref) of
 		undefined ->
 			Msg = ?T2B({sid_response, Ref, Sid, {error, 5031}}),
