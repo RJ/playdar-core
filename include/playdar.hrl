@@ -12,3 +12,8 @@
 
 -define(DEFAULT_WEB_PORT, 60210).
 
+% project-wide struct
+-record(qry,      {qid,      % query id
+                   obj,      % json obj
+                   local     % true if local user created it, false if via lan etc
+                  }).

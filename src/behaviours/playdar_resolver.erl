@@ -7,7 +7,7 @@ behaviour_info(callbacks) ->
      {name,1},
      {weight,1},
 	 {targettime,1},
-	 {resolve,3}
+	 {resolve,2}
 	];
 
 behaviour_info(_Other) ->

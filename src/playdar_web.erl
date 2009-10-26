@@ -58,12 +58,11 @@ loop1(Req, DocRoot) ->
         % serving a file that was found by a query, based on SID:
         "sid/" ++ SidL ->
             Sid = list_to_binary(SidL),
-            case resolver:sid2pid(Sid) of
+            case resolver:result(Sid) of
                 undefined ->
                     Req:not_found();
-                Qpid ->
+                A ->
                     Ref = make_ref(),
-                    A = qry:result(Qpid, Sid),
                     case playdar_reader_registry:get_streamer(A, self(), Ref) of
                         undefined ->
                             Req:respond({503, [], <<"Playdar server error: no such protocol handler">>});
@@ -148,23 +147,27 @@ loop1(Req, DocRoot) ->
             end;
 
         "queries" ->
-            Qrys = resolver:queries(),
-            Fun = fun({{qid, Qid},Qpid}) ->
-                Json = mochijson2:encode(qry:q(Qpid)),
-                NumResults = length(qry:results(Qpid)),
-                [{qid,Qid}, {qry,Json}, {num_results,NumResults}]
-            end,
-            Vars = [ {queries, [Fun(Q) || Q <- Qrys]} ],
+            Qids = resolver:queries(),
+            Fun = fun(Qid) ->
+						  {Results, #qry{obj = Qryobj}, Solved} = resolver:results(Qid),
+						  Json = mochijson2:encode(Qryobj),
+                		  NumResults = length(Results),
+                		  [{qid,Qid}, {solved, Solved}, 
+						   {qry,Json}, {num_results,NumResults}]
+            	  end,
+            Vars = [ {queries, [Fun(Qid) || Qid <- Qids]} ],
             render(Req, DocRoot ++ "/queries.html", Vars);
         
-        "queries/" ++ Qid ->
-            case resolver:qid2pid(list_to_binary(Qid)) of
+        "queries/" ++ QidL ->
+			Qid = list_to_binary(QidL),
+            case resolver:results(Qid) of
                 undefined -> Req:not_found();
-                Qpid when is_pid(Qpid)->
+                {ResultsList, #qry{obj = Qryobj}, Solved} ->
                     Results = [ [{list_to_atom(binary_to_list(K)),V}||{K,V}<-L] 
-                                || {struct, L} <- qry:results(Qpid) ],
+                                || {struct, L} <- ResultsList ],
                     Vars = [ {qid, Qid},
-                             {qry, mochijson2:encode(qry:q(Qpid))}, 
+                             {qry, mochijson2:encode(Qryobj)},
+							 {solved, Solved}, 
                              {results, Results} ],
                     render(Req, DocRoot ++ "/query.html", Vars)
             end;
@@ -185,6 +188,7 @@ loop1(Req, DocRoot) ->
             Req:serve_file("static/" ++ StaticFile, DocRoot);
 
 		"crossdomain.xml" ->
+			% crossdomain support is on by default, but can be disabled in config:
 			case ?CONFVAL(crossdomain, true) of
 				true ->
 					Req:serve_file("crossdomain.xml", DocRoot);
