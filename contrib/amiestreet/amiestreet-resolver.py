@@ -26,25 +26,30 @@ sys.path.insert(0, os.path.join(my_dir, '../resolver_libs/'))
 
 import playdar_resolver
 
-asClient = None
 
-def getASApiClient():
-    if asClient != None:
-        return asClient
-
-    return AmieStreet('http://beta.amiestreet.com/api/v0.1/')
 
 class AmieStreetResolver(playdar_resolver.PlaydarResolver):
+        __client = None
+
+        def getASApiClient(self):
+            if self.__client == None:
+                self.__client = AmieStreet('http://beta.amiestreet.com/api/v0.1/')
+
+            return self.__client
+
         def resolver_settings(self):
             """My settings"""
-            return {'name':"Amie Street Resolver", 'targettime':800, 'weight':50}
+            return {'name':"Amie Street Resolver", 'targettime':1000, 'weight':50}
 
         def results(self, query):
-            results = getASApiClient().SearchApi_find(query['artist'], query['track']);
+            results = self.getASApiClient().SearchApi_find(query['artist'], query['track']);
+            if not results.has_key('songs'):
+                return []
+
             songs = results['songs']
             
             if songs[0]['found']==True:
-                songObject = getASApiClient().SongApi_getSongById(songs[0]['id']);
+                songObject = self.getASApiClient().SongApi_getSongById(songs[0]['id']);
                 song = {};
                 song['artist']  = songObject['artist']['name']
                 song['album']   = songObject['album']['title']
