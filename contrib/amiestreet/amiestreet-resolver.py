@@ -1,45 +1,36 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-# Created by Paul Lamere<Paul.Lamere@gmail.com> twitter.com/plamere
+# Amie Street resolver by Lucas Hrabovsky<hrabovsky.lucas@gmail.com> twitter.com/__lucas
+# Using the Amie Street API Python Client available at http://github.com/imlucas/amiestreet-api/blob/master/py/amie-api.py
+#
+# Based on the echonest resolver by:
+# Paul Lamere<Paul.Lamere@gmail.com> twitter.com/plamere
+#
 # Based on the seeqpod resolver by:
 # Max Howell <max@methylblue.com> twitter.com/mxcl
 # Licensed the same as Playdar
 #
-# Uses pyechonest available at http://code.google.com/p/pyechonest/
+# pyechonest available at http://code.google.com/p/pyechonest/
 # http://bitbucket.org/rg3/youtube-dl/wiki/Home
  
 ########################################################################
 import sys
-from httplib import HTTP
 import simplejson as json
-from urlparse import urlparse
-import urllib, urllib2
-import socket
-from xml.dom import minidom
 from struct import unpack, pack
-
 from amieapi import AmieStreet
 
- 
 ##########################################
-# Echo nest resolver
-#
-
-# given an
+# Amie Street Resolver
+##########################################
 def get_tracks(artist_name, track_name):
-    print >>sys.stderr, 'AS: searching for', artist_name, track_name, '\r'
+    print >>sys.stderr, 'Amie Street: searching for', artist_name, track_name, '\r'
     songs = []
-    artists = [];
-    
-    
     amiestreet = AmieStreet('http://beta.amiestreet.com/api/v0.1/');
-    
     results = amiestreet.SearchApi_find(artist_name, track_name);
-    artists = results['artists']
     songs = results['songs']
     
     if songs[0]['found']==True:
-        print >>sys.stderr, 'AS: FOUND IT', '\r'
+        print >>sys.stderr, 'Amire Street: FOUND IT', '\r'
         songObject = amiestreet.SongApi_getSongById(songs[0]['id']);
         song = {};
         song['artist']  = songObject['artist']['name']
@@ -48,30 +39,13 @@ def get_tracks(artist_name, track_name):
         song['source']  = 'AmieStreet.com'
         song['score']   = 1.00;
         song['url']     = 'http://amiestreet.com/stream/song'+str(songObject['id'])+'.mp3'
+        song['isSample']= not songObject['actorHasSong']
         return [song];
     
-    print >>sys.stderr, 'AS: found nothing', '\r'
+    print >>sys.stderr, 'Amie Street: found nothing', '\r'
     
     return [];
- 
- 
-def is_live(url):
- 
-    try:
-        socket.setdefaulttimeout(5)
-        f = urllib.urlopen(url)
-        is_audio = f.info().gettype().find("audio") >= 0
-        f.close()
-        return is_audio
-    except IOError:
-        return False
- 
-def fuzzy_match(query, match):
-    # we need a better fuzzy match than this
-    query = query.lower()
-    match = match.lower()
-    return match.find(query) >= 0
-   
+
 ###################################################################### functions
 def print_json(o):
     s = json.dumps(o)
@@ -79,24 +53,19 @@ def print_json(o):
     sys.stdout.write(s)
     sys.stdout.flush()
  
-def percent_encode(url):
-    # Ha! Yeah, needs work
-    return url.replace(' ', '%20')
- 
 def resolve(artist, track):
     return get_tracks(artist, track)
  
  
 def test():
     print get_tracks('People Under The Stairs', 'Beer');
- 
-#test()
+
 ####################################################################### settings
 settings = dict()
 settings["_msgtype"] = "settings"
 settings["name"] = "Amie Street Resolver"
-settings["targettime"] = 800 # millseconds
-settings["weight"] = 50 # echo nest results aren't as good as friend's results
+settings["targettime"] = 800
+settings["weight"] = 50
 print_json( settings )
  
 ###################################################################### main loop
