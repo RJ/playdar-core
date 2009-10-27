@@ -56,7 +56,7 @@ class AmieStreetResolver(playdar_resolver.PlaydarResolver):
                 song['track']   = songObject['title']
                 song['source']  = 'AmieStreet.com'
                 song['score']   = 1.00;
-                song['url']     = 'http://amiestreet.com/stream/song'+str(songObject['id'])+'.mp3'
+                song['url']     = 'http://amiestreet.com/stream/song/'+str(songObject['id'])+'.mp3'
                 song['isSample']= not songObject['actorHasSong']
                 return [song]
             
