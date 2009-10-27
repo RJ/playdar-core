@@ -1,14 +1,24 @@
 -module(playdar_http_api).
+-include("playdar.hrl").
 -export([http_req/2]).
 
 http_req(Req, DocRoot) ->
     Qs = Req:parse_qs(),
+	JsonP = proplists:get_value("jsonp", Qs, ""),
     M = proplists:get_value("method", Qs),
     Auth = playdar_auth:check_auth(proplists:get_value("auth",Qs,"")),
+	% If you are using jsonp callbacks, we verify your authcode:
+	Authenticated = case JsonP of
+						"" -> {true, []};
+						_  -> case Auth of
+								  A when is_list(A) -> {true, A};
+								  undefined -> {false, []}
+							  end
+					end,
     case M of
         "stat" ->
-            case Auth of
-                Props when is_list(Props) ->
+            case Authenticated of
+                {true, _Props} ->
                     R = {struct,[   
                             {"name", <<"playdar">>},
                             {"version", <<"0.1.0">>},
@@ -22,7 +32,7 @@ http_req(Req, DocRoot) ->
                             %]}}
                         ]},
                     respond(Req, R);
-                undefined ->
+                {false, _} ->
                     R = {struct, [
                             {"name", <<"playdar">>},
                             {"version", <<"0.1.0">>},
@@ -31,8 +41,14 @@ http_req(Req, DocRoot) ->
                     respond(Req, R)
             end;
 
-        _ -> http_req_authed(Req, DocRoot, M, Qs, Auth)
-
+        _ ->
+			% for all methods other than stat, require auth if jsonp= is used.
+			case Authenticated of
+				{true, AuthProps} ->
+					http_req_authed(Req, DocRoot, M, Qs, AuthProps);
+				{false, _} ->
+					Req:respond({403, [], <<"<h1>Not Authorised</h1>">>})
+			end
     end.
     
 
@@ -43,15 +59,16 @@ http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
             Album  = proplists:get_value("album", Qs, ""),
             Track  = proplists:get_value("track", Qs, ""),
             Qid    = case proplists:get_value("qid", Qs) of
-                undefined -> utils:uuid_gen();
-                Str -> list_to_binary(Str)
-            end,
+                		undefined -> utils:uuid_gen();
+                		Str -> list_to_binary(Str)
+            		 end,
             Q = {struct,[
                     {<<"artist">>, list_to_binary(Artist)}, 
                     {<<"album">>,  list_to_binary(Album)}, 
                     {<<"track">>,  list_to_binary(Track)}
                 ]},
-            _Qpid = resolver:dispatch(Q, Qid),
+			Qry = #qry{ qid = Qid, obj = Q, local = true },
+            Qid = resolver:dispatch(Qry),
             R = {struct,[
                     {"qid", Qid}
                 ]},
@@ -60,19 +77,17 @@ http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
             
         "get_results" ->
             Qid = list_to_binary(proplists:get_value("qid", Qs)),
-            Qpid = resolver:qid2pid(Qid),
-            case Qpid of 
-                undefined ->
-                    Req:not_found();
-                _ ->
-                    Results = qry:results(Qpid),
-                    Q = qry:q(Qpid),
+			case resolver:results(Qid) of
+				undefined ->
+					Req:not_found();
+				{Results, #qry{obj = Q}, Solved} ->
                     R = {struct,[
                             {"qid", Qid},
                             {"refresh_interval", 1000}, % TODO legacy, to be removed
 							{"poll_interval", 1000},
 							{"poll_limit", 6}, % TODO sum of all targettimes from loaded resolvers
                             {"query", Q},
+							{"solved", Solved},
                             {"results", 
                                 [ {struct, proplists:delete(<<"url">>,L)} || 
                                   {struct, L} <- Results ]}

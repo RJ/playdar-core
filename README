@@ -1,3 +1,5 @@
+Playdar
+=======
 Playdar is a music content resolver, written in Erlang, MIT licensed.
 It's modular and can be extended using resolver scripts in any language.
 It has an HTTP API to answer the question "can i play this song?".
@@ -8,12 +10,153 @@ For more information see: http://www.playdar.org/
 
 Building
 --------
-To build everything (you need erlang, taglib, gcc):
+To build all the erlang code:
 
- $ make
+    $ make
+
+To build the collection scanner (needs taglib, g++):
+
+    $ make scanner
 
 Running
 -------
 
- $ ./playdarctl start-debug
+    $ ./playdarctl start-debug
+
+In another terminal you can now do:
+
+    $ ./playdarctl numfiles
+    $ ./playdarctl scan "/path/to/music"
+    $ ./playdarctl numfiles
+
+Then check out http://localhost:60210/ and http://www.playdar.org/demos/
+
+Understanding Playdar
+=====================
+
+The core playdar daemon is a generic content-resolver engine.
+It contains a simple http server (Mochiweb), a resolver infrastructure, external
+module loader (plugins) and configuration management. 
+
+Playdar core allows you to dispatch queries and check query status, but by 
+itself it can't resolve content. This is all handled by plugins.
+
+Clients talk to Playar using the HTTP API. JSON is used for everything.
+
+Resolver Queries
+----------------
+All queries passed to Playdar are simply JSON objects of any shape or size. 
+Playdar checks for a "qid" propery - a GUID for the query, in each object,
+but nothing else - it's up to the plugins to decode the query objects.
+
+If a plugin doesn't recognise a query it simply ignores it.
+
+The following examples are similar in syntax to how Playdar is built, but may
+not necessarily be exactly correct. They serve to illustrate the query
+mechanics:
+
+Music Query Example
+-------------------
+The query object:
+{
+    "qid" : "XXX123",
+    "artist" : "Big Bad Sun",
+    "track"  : "Sweet Melissa"
+}
+
+This is a simple query for a specific song. In this case, the default plugins
+that ship with Playdar know how to handle it - because we're using Playdar as
+a music content resolver. The library plugin will search your disk and respond
+with a result if you have a copy of the song being searched for:
+A result object:
+{
+    "sid" : "YYY456",
+    "qid" : "XXX123",
+    "result" : {
+        "url" : "/path/to/sweet_melissa.mp3",
+        "bitrate" : 128,
+        "duration" : 283,
+        "artist" : "Big Bad Sun",
+        "track" : "Sweet Melissa (live)",
+        "score" : 0.89
+    }
+}
+In the the above example, the library plugin reports a result for the query 
+with a score of 0.89 - it found a live version - but close enough.
+The "sid" propery is a GUID for the result.
+
+Resolvers can report multiple result objects for any query.
+
+Non-music Example
+-----------------
+Depending on the plugins loaded, Playdar could be used to resolve anything.
+Here's a fictional example query for an academic essay:
+{
+    "qid"    : "XXX789",
+    "author" : "Jonathan swift",
+    "year"   : 1729,
+    "title"  : "a modest propsal"
+}
+... and if you have a resolver plugin that could search for essays and academic
+papers, it might respond like this:
+{
+    "sid"    : "YYY123",
+    "qid"    : "XXX789",
+    "result" : {
+        "author" : "Jonathan Swift",
+        "year"   : 1729,
+        "title"  : "A Modest Proposal",
+        "score"  : 1.00,
+        "category"   : "humour",
+        "url"    : "http://art-bin.com/art/omodest.html"
+    }
+}
+
+In this example, the resolver matched the query to an essay posted on the web
+instead of the local filesystem. 
+
+Custom Protocols
+----------------
+Playdar ships with support for reading content from http:// and file:// URLs.
+That is to say support for those protocols is implemented by plugins that ship
+by default.
+
+A resolver could provide an url like this: "custom://abc123-modest-blah" and
+register itself as a handler for custom:// urls. This allows resolver plugins
+to fetch and stream content in any way they like. 
+You could add support for ftp:// or a custom p2p:// protocol if you wanted.
+
+How Clients Fetch Results
+-------------------------
+The actual URL to the resolved content, be it a local filesystem or http URL,
+is never exposed to clients using the Playdar HTTP API. The "url" propery is
+stripped out of result objects before they are returned to clients.
+The "sid" GUID in every result object is used to request the content, like so:
+ http://localhost:60210/sid/<sid>
+Playdar will then fetch the content using the appropriate protocol handler
+internally (file, http, p2p, custom, etc), and respond to the client with a 
+well formed HTTP response. This means that clients only need to understand
+HTTP. The details of how content is fetched by Playdar are hidden from clients.
+Clients don't need to know where or how you access your music. 
+The Playdar API lets them ask "Can you play this song". The details of where
+and how you access the song are kept private.
+To reiterate: clients can't tell whether you are playing a song you have on
+your local disk, or are streaming over the internet from some other service.
+
+How webpages interact with Playdar
+----------------------------------
+Desktop apps can obviously just use the HTTP API on localhost without any 
+special considerations. Webapps and anything running in the browser is 
+subject to the browser security model, specifically the "same-origin policy".
+This means that you can't access content in a document loaded from a domain
+different to the domain your javascript executes in.
+
+To solve this problem, playdar uses JSONP callbacks. Instead of requesting
+http://localhost:60210/api/?method=stat
+and getting json in response, you inject a script tag into the dom like this:
+<script language="javascript" 
+        src="http://localhost:60210/api/?method=stat&jsonp=my_callback"/>
+Playdar responds with the json object wrapped in your padding:
+ my_callback(...normal json response...);
+which then fires the my_callback function - voilia, cross domain RPC.
 

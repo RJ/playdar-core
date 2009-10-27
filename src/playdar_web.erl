@@ -58,12 +58,11 @@ loop1(Req, DocRoot) ->
         % serving a file that was found by a query, based on SID:
         "sid/" ++ SidL ->
             Sid = list_to_binary(SidL),
-            case resolver:sid2pid(Sid) of
+            case resolver:result(Sid) of
                 undefined ->
                     Req:not_found();
-                Qpid ->
+                A ->
                     Ref = make_ref(),
-                    A = qry:result(Qpid, Sid),
                     case playdar_reader_registry:get_streamer(A, self(), Ref) of
                         undefined ->
                             Req:respond({503, [], <<"Playdar server error: no such protocol handler">>});
@@ -86,10 +85,10 @@ loop1(Req, DocRoot) ->
                     case proplists:get_value("json", Qs) of 
                         undefined ->
                             FormVars= [
-                                       {"receiverurl", proplists:get_value("receiverurl",Qs)},
+                                       {"receiverurl", proplists:get_value("receiverurl",Qs,"")},
                                        {"formtoken", Ftok},
-                                       {"website", proplists:get_value("website", Qs)},
-                                       {"name", proplists:get_value("name", Qs)}
+                                       {"website", proplists:get_value("website", Qs,"")},
+                                       {"name", proplists:get_value("name", Qs, "")}
                                       ],
                             render(Req, DocRoot ++ "/auth.html", [{formvars, FormVars}]);
 
@@ -113,15 +112,15 @@ loop1(Req, DocRoot) ->
                     % create the entry in the auth db:
                     AuthCode = utils:uuid_gen(),
                     % m_pauth->create_new(tok, req.postvar("website"), req.postvar("name"), req.useragent() );
-                    playdar_auth:create(AuthCode, [ {website, proplists:get_value("website",Qs)},
-                                            {name, proplists:get_value("name",Qs)}
+                    playdar_auth:create(AuthCode, [ {website, proplists:get_value("website",Qs, "")},
+                                            {name, proplists:get_value("name",Qs, "")}
                                           ]),
-                    case proplists:get_value("receiverurl",Qs,"") of
+                    case proplists:get_value("receiverurl",Qs, "") of
                         "" ->
-                            case proplists:get_value("json", Qs) of 
+                            case proplists:get_value("json", Qs, "") of 
                                 undefined ->
-                                    Vars = [    {website,proplists:get_value("website",Qs)},
-                                                {name,proplists:get_value("name",Qs)},
+                                    Vars = [    {website,proplists:get_value("website",Qs, "")},
+                                                {name,proplists:get_value("name",Qs, "")},
                                                 {authcode, AuthCode}
                                            ],
                                     render(Req, DocRoot ++ "/auth.na.html", Vars);
@@ -148,23 +147,27 @@ loop1(Req, DocRoot) ->
             end;
 
         "queries" ->
-            Qrys = resolver:queries(),
-            Fun = fun({{qid, Qid},Qpid}) ->
-                Json = mochijson2:encode(qry:q(Qpid)),
-                NumResults = length(qry:results(Qpid)),
-                [{qid,Qid}, {qry,Json}, {num_results,NumResults}]
-            end,
-            Vars = [ {queries, [Fun(Q) || Q <- Qrys]} ],
+            Qids = resolver:queries(),
+            Fun = fun(Qid) ->
+						  {Results, #qry{obj = Qryobj}, Solved} = resolver:results(Qid),
+						  Json = mochijson2:encode(Qryobj),
+                		  NumResults = length(Results),
+                		  [{qid,Qid}, {solved, Solved}, 
+						   {qry,Json}, {num_results,NumResults}]
+            	  end,
+            Vars = [ {queries, [Fun(Qid) || Qid <- Qids]} ],
             render(Req, DocRoot ++ "/queries.html", Vars);
         
-        "queries/" ++ Qid ->
-            case resolver:qid2pid(list_to_binary(Qid)) of
+        "queries/" ++ QidL ->
+			Qid = list_to_binary(QidL),
+            case resolver:results(Qid) of
                 undefined -> Req:not_found();
-                Qpid when is_pid(Qpid)->
+                {ResultsList, #qry{obj = Qryobj}, Solved} ->
                     Results = [ [{list_to_atom(binary_to_list(K)),V}||{K,V}<-L] 
-                                || {struct, L} <- qry:results(Qpid) ],
+                                || {struct, L} <- ResultsList ],
                     Vars = [ {qid, Qid},
-                             {qry, mochijson2:encode(qry:q(Qpid))}, 
+                             {qry, mochijson2:encode(Qryobj)},
+							 {solved, Solved}, 
                              {results, Results} ],
                     render(Req, DocRoot ++ "/query.html", Vars)
             end;
@@ -182,9 +185,17 @@ loop1(Req, DocRoot) ->
 
         % serve any file under /static/ verbatim
         "static/" ++ StaticFile ->
-        io:format("static:~s~n",[StaticFile]),
             Req:serve_file("static/" ++ StaticFile, DocRoot);
 
+		"crossdomain.xml" ->
+			% crossdomain support is on by default, but can be disabled in config:
+			case ?CONFVAL(crossdomain, true) of
+				true ->
+					Req:serve_file("crossdomain.xml", DocRoot);
+				false ->
+					Req:not_found()
+			end;
+		
         % hand off dynamically:
         _ -> 
             case http_registry:get_handler(Req:get(path)) of
@@ -199,8 +210,10 @@ loop1(Req, DocRoot) ->
 %% Internal API
   
 render(Req, File, Vars) ->
-    ok = erlydtl:compile(File, tpl_index),
-    {ok, HtmlIO} =  tpl_index:render(Vars),
+    % if render is crashing, Vars is probably invalid:
+    %?LOG(info, "render(~s) ~p", [File, Vars]),
+    ok = erlydtl:compile(File, tpl), % TODO compiled templates could be cached
+    {ok, HtmlIO} =  tpl:render(Vars),
     Html = lists:flatten(HtmlIO),
     Req:ok({"text/html",[{"Server", "Playdar"}],Html}).
 

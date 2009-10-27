@@ -5,7 +5,7 @@
 -behaviour(playdar_resolver).
 
 %% API
--export([start_link/0, resolve/3, weight/1, targettime/1, name/1, dump_library/1]).
+-export([start_link/0, resolve/2, weight/1, targettime/1, name/1, dump_library/1]).
 -export([scan/2, stats/1, add_file/5, sync/1 ]).
 
 %% gen_server callbacks
@@ -22,7 +22,7 @@ scan(Pid, Dir)          -> gen_server:call(Pid, {scan, Dir}, infinity).
 add_file(Pid, F, Mtime, Size, L) -> gen_server:call(Pid, {add_file, F, Mtime, Size, L}, 60000).
 sync(Pid)               -> gen_server:cast(Pid, sync).
   
-resolve(Pid, Q, Qpid)   -> gen_server:cast(Pid, {resolve, Q, Qpid}).
+resolve(Pid, Qry)       -> gen_server:cast(Pid, {resolve, Qry}).
 weight(_Pid)            -> 100.
 targettime(_Pid)        -> 20.
 name(_Pid)              -> "Local Library using DETS".
@@ -59,8 +59,8 @@ handle_cast(sync, State) ->
     ?LOG(info, "library synced", []),
     {noreply, State};
 
-handle_cast({resolve, Q, Qpid}, State) ->
-    case Q of
+handle_cast({resolve, Qry = #qry{qid = Qid, obj = Obj}}, State) ->
+    case Obj of
         {struct, Mq} -> % Mq is a proplist
             Hostname = ?CONFVAL(name, "unknown"),
 			Name = case State#state.customname of
@@ -80,7 +80,7 @@ handle_cast({resolve, Q, Qpid}, State) ->
                                 {<<"size">>, proplists:get_value(size, Props)},
                                 {<<"source">>, list_to_binary(Name)}
                             ]},
-                qry:add_result(Qpid, Rep)                
+				resolver:add_results(Qid, Rep)           
             end,
             Art = proplists:get_value(<<"artist">>,Mq,<<"">>),
             Trk = proplists:get_value(<<"track">>,Mq,<<"">>),
@@ -205,31 +205,11 @@ search(Art,_Alb,Trk,State) ->
     Results = [ begin
                     ArtClean = proplists:get_value(artist_clean, FL),
                     TrkClean = proplists:get_value(track_clean, FL),
-                    Score = calc_score({ArtClean, Art},
-									   {TrkClean, Trk}),
+                    Score = utils:calc_score({ArtClean, Art}, 
+                                             {TrkClean, Trk}),
                     { FL, Score }
                 end
                 || {_FileId, FL} <- Files ],
     % sort and return to the top N results:
     lists:sublist( lists:reverse( lists:keysort(2,Results) ), 10 ).
 
-
-% score betweek 0-1 when ArtClean is original, Art is the input/query etc
-calc_score({ArtClean, Art}, {TrkClean, Trk}) ->
-	ArtDist = utils:levenshtein(Art, ArtClean),
-	TrkDist = utils:levenshtein(Trk, TrkClean),
-	% calc 0-1 scores for artist and track match:
-	MaxArt = utils:max(0.001, length(ArtClean)),
-	MaxTrk = utils:max(0.001, length(TrkClean)),
-	ArtScore0 = utils:max(0, length(ArtClean) - ArtDist) / MaxArt,
-	TrkScore0 = utils:max(0, length(TrkClean) - TrkDist) / MaxTrk,
-	% exagerate lower scores
-	ArtScore = 1-math:cos(ArtScore0*math:pi()/2),
-	TrkScore = 1-math:cos(TrkScore0*math:pi()/2),
-	% combine them, weighting artist more than track:
-	Score = (ArtScore + TrkScore)/2.0,
-	case ?CONFVAL(explain, false) of
-		true	-> ?LOG(info, "Score:~f Art:~f Trk:~f\t~s - ~s", [Score, ArtScore, TrkScore, ArtClean, TrkClean]);
-		false	-> ok
-	end,
-	Score.

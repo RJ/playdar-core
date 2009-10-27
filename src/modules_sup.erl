@@ -50,7 +50,10 @@ init([]) ->
     %?LOG(info, "Starting modules: ~p", [Specs]),
     case Specs of
         [] -> ignore;
-        _  -> {ok,{{one_for_one,0,1}, Specs}}
+        _  -> {ok,
+                {{one_for_one,
+                  length(Specs), 1} %Limit worker restarts to 1x(resolver count) per second.
+                , Specs}}
     end.
 
 %% ====================================================================
@@ -91,7 +94,9 @@ process_module(Mod) ->
             end,
             case lists:member(playdar_resolver, Behaviours) of 
                 % if it's a playdar_resolver, supervise it, it will
-                % register itself on startup:
+                % register itself on startup.
+                % They are transient so they can exit normally and not be restarted,
+                % eg, your credentials are wrong, or it's misconfigured etc.
                 true  ->
                     {Mod, 
                       {Mod, start_link, []}, 

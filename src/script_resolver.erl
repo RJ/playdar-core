@@ -5,7 +5,7 @@
 -include("playdar.hrl").
 
 %% playdar_resolver API:
--export([start_link/1, resolve/3, weight/1, targettime/1, name/1]).
+-export([start_link/1, resolve/2, weight/1, targettime/1, name/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -15,7 +15,7 @@
 
 %% API
 start_link(Exe)         -> gen_server:start_link(?MODULE, [Exe], []).
-resolve(Pid, Q, Qpid)   -> gen_server:cast(Pid, {resolve, Q, Qpid}).
+resolve(Pid, Qry)       -> gen_server:cast(Pid, {resolve, Qry}).
 weight(Pid)             -> gen_server:call(Pid, weight).
 targettime(Pid)         -> gen_server:call(Pid, targettime).
 name(Pid)               -> gen_server:call(Pid, name).
@@ -31,9 +31,7 @@ handle_call(weight, _From, State) -> {reply, State#state.weight, State};
 handle_call(targettime, _From, State) -> {reply, State#state.tt, State};
 handle_call(name, _From, State) -> {reply, State#state.name, State}.
 
-handle_cast({resolve, Q, Qpid}, #state{port=Port} = State) ->
-    {struct, Parts} = Q,
-    Qid = qry:qid(Qpid),
+handle_cast({resolve, #qry{obj={struct, Parts}, qid=Qid}}, #state{port=Port} = State) ->
     Msg = {struct, [ {<<"_msgtype">>, <<"rq">>},{<<"qid">>,Qid} | Parts ]},
     Encoded = mochijson2:encode(Msg),
     port_command(Port, Encoded),
@@ -45,20 +43,9 @@ handle_info({Port, {data, Data}}, #state{port=Port} = State) ->
         
         <<"results">> ->
             Qid = proplists:get_value(<<"qid">>, L),
-            case resolver:qid2pid(Qid) of
-                Qpid when is_pid(Qpid) ->
-                    case proplists:get_value(<<"results">>, L) of
-                        Results when is_list(Results) ->
-                            ?LOG(info, "Got results from script: ~p", [Results]),
-                            qry:add_results(Qpid, Results);
-                        _ ->
-                            ?LOG(warning, "Script ~s - invalid results returned~n", [State#state.name])
-                    end,
-                    {noreply, State};
-                _ ->
-                    ?LOG(warning, "Script responded with invalid QID", []),
-                    {noreply, State}
-            end;
+			Results = proplists:get_value(<<"results">>, L),
+			resolver:add_results(Qid, Results),
+			{noreply, State};
         
         <<"settings">> ->
             Name    = binary_to_list(

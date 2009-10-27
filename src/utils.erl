@@ -1,5 +1,6 @@
 -module(utils).
--export([uuid_gen/0, min/2, max/2, levenshtein/2, list_agg/1 ]).
+-include("playdar.hrl").
+-export([uuid_gen/0, min/2, max/2, levenshtein/2, list_agg/1, calc_score/2 ]).
 -import(random).
 
 %% UUID Generation: http://github.com/travis/erlang-uuid/blob/master/uuid.erl
@@ -19,7 +20,34 @@ get_parts(<<TL:32, TM:16, THV:16, CSR:8, CSL:8, N:48>>) ->
     [TL, TM, THV, CSR, CSL, N].
 
 
-% min/max
+% score betweek 0-1 when ArtClean is original, Art is the input/query etc
+calc_score({ArtClean, Art}, {TrkClean, Trk}) ->
+    ArtDist = utils:levenshtein(Art, ArtClean),
+    TrkDist = utils:levenshtein(Trk, TrkClean),
+    % calc 0-1 scores for artist and track match:
+    MaxArt = utils:max(0.001, length(ArtClean)),
+    MaxTrk = utils:max(0.001, length(TrkClean)),
+    ArtScore0 = utils:max(0, length(ArtClean) - ArtDist) / MaxArt,
+    TrkScore0 = utils:max(0, length(TrkClean) - TrkDist) / MaxTrk,
+    % exagerate lower scores
+    ArtScore = 1-math:cos(ArtScore0*math:pi()/2),
+    TrkScore = 1-math:cos(TrkScore0*math:pi()/2),
+    % combine them, weighting artist more than track:
+    Score0 = (ArtScore + TrkScore)/2.0,
+    Score = case  Score0 > 0.99 of
+                true  -> 1.0;
+                false -> Score0
+            end,
+    case ?CONFVAL(explain, false) of
+        true    -> ?LOG(info, "Score:~f Art:~f Trk:~f\t~s - ~s", [Score, ArtScore, TrkScore, ArtClean, TrkClean]);
+        false   -> ok
+    end,
+    Score.
+
+
+
+
+% min/max. these must be in the stdlib somewhere, couldn't bloody find them.
 min(A,B) ->
     if 
         A < B -> A;

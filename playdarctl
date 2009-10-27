@@ -45,7 +45,7 @@ ctl ()
     then
         return 0
     else
-        if [ ! "$@" = "stop" ]
+        if [ ! "$1" = "stop" ]
         then
             echo "Usage: playdarctl <start|start-debug|stop|help>"
             echo "       (additional commands available once playdar is running)"

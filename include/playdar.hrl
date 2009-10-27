@@ -9,3 +9,11 @@
 -define(OK, 0).
 -define(ERROR, 1).
 -define(WTF, 99).
+
+-define(DEFAULT_WEB_PORT, 60210).
+
+% project-wide struct
+-record(qry,      {qid,      % query id
+                   obj,      % json obj
+                   local     % true if local user created it, false if via lan etc
+                  }).

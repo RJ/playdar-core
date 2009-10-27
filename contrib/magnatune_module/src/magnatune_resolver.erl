@@ -7,7 +7,7 @@
 -behaviour(playdar_resolver).
 
 %% API
--export([start_link/0, resolve/3, weight/1, targettime/1, name/1]).
+-export([start_link/0, resolve/2, weight/1, targettime/1, name/1]).
 -export([ stats/1, parse/2, check_index/2 ]).
 
 %% gen_server callbacks
@@ -20,7 +20,7 @@
 
 start_link()            -> gen_server:start_link(?MODULE, [], []).
   
-resolve(Pid, Q, Qpid)   -> gen_server:cast(Pid, {resolve, Q, Qpid}).
+resolve(Pid, Qry)       -> gen_server:cast(Pid, {resolve, Qry}).
 weight(_Pid)            -> 100.
 targettime(_Pid)        -> 20.
 name(_Pid)              -> "Magnatune index".
@@ -36,8 +36,8 @@ init([]) ->
 	spawn(fun()->check_index(Mpid, LibPid)end),
     {ok, #state{libpid=LibPid}}.
 
-handle_cast({resolve, Q, Qpid}, State) ->
-	library_dets:resolve(State#state.libpid, Q, Qpid),
+handle_cast({resolve, Qry}, State) ->
+	library_dets:resolve(State#state.libpid, Qry),
 	{noreply, State}.
 
 handle_call(stats, _From, State) ->

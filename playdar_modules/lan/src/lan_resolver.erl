@@ -8,7 +8,7 @@
 -behaviour(playdar_resolver).
 
 %% API
--export([start_link/0, resolve/3, weight/1, targettime/1, name/1, send_response/5]).
+-export([start_link/0, resolve/2, weight/1, targettime/1, name/1, send_response/5]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -17,11 +17,11 @@
 -record(state, {sock, sockp, seenqids, broadcast, port}).
 
 -define(BROADCAST, {239,255,0,1}). % default, can be changed in config
--define(PORT, 60210). % can be changed in config
+-define(PORT, ?DEFAULT_WEB_PORT).  % can be changed in config
 
 %% API
 start_link()            -> gen_server:start_link(?MODULE, [], []).
-resolve(Pid, Q, Qpid)   -> gen_server:cast(Pid, {resolve, Q, Qpid}).
+resolve(Pid, Qry)       -> gen_server:cast(Pid, {resolve, Qry}).
 weight(_Pid)            -> 95.
 targettime(_Pid)        -> 50.
 name(_Pid)              -> "Lan".
@@ -57,15 +57,15 @@ handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
 
-handle_cast({resolve, Q, Qpid}, State) ->
+handle_cast({resolve, #qry{obj = Q, qid = Qid}}, State) ->
     {struct, Parts} = Q,
-	Qid = qry:qid(Qpid),
 	% Ignore if we've dealt with this qid already
 	case ets:lookup(State#state.seenqids, Qid) of
 		[{Qid, true}] -> 
+			?LOG(info, "LAN ignoring dispatch request for duplicate qid: ~s",[Qid]),
 			{noreply, State};
 		_ ->
-            ?LOG(info, "LAN dispatching query", []),
+            ?LOG(info, "LAN dispatching query ~s", [Qid]),
 			ets:insert(State#state.seenqids, {Qid,true}),
 			Msg = {struct, [ {<<"_msgtype">>, <<"rq">>},{<<"qid">>,Qid} | Parts ]},
 			gen_udp:send(State#state.sock, State#state.broadcast, State#state.port, mochijson2:encode(Msg)),
@@ -73,7 +73,7 @@ handle_cast({resolve, Q, Qpid}, State) ->
 	end;
  
 handle_cast({send_response, A, Qid, Ip, Port}, State) ->
-    ?LOG(debug, "sending response for qry ~s to ~w", [Qid, Ip]),
+    ?LOG(info, "sending response for qry ~s to ~p", [Qid, Ip]),
     {struct, Parts} = A,
     Hostname = ?CONFVAL(name, ""),
     Msg = {struct, [    {<<"_msgtype">>, <<"result">>},
@@ -81,51 +81,71 @@ handle_cast({send_response, A, Qid, Ip, Port}, State) ->
                         {<<"result">>, 
                          {struct, [
                                    {<<"source">>, list_to_binary(Hostname)},
-                                   {<<"port">>, ?CONFVAL({web, port}, 60210)} |
+                                   {<<"port">>, ?CONFVAL({web, port}, ?DEFAULT_WEB_PORT)} |
                                    proplists:delete(<<"url">>,
-                                    proplists:delete(<<"source">>,Parts))
+                                    proplists:delete(<<"source">>,
+                                     proplists:delete(<<"port">>, Parts)))
                          ]}}
                     ]},
     gen_udp:send(State#state.sock, Ip, Port, mochijson2:encode(Msg)),
     {noreply, State}.
 
-% could me a msg from broadcast socket, or private one (meaning a direct reply):
-handle_info({udp, _Sock, {A,B,C,D}=Ip, _InPortNo, Packet}, State) ->
-    ?LOG(debug, "received msg: ~s", [Packet]),
+% msg on the broadcast socket = a new incoming query
+handle_info({udp, Sock, Ip, _InPortNo, Packet}, State = #state{sock=Sock}) ->
     {struct, L} = mochijson2:decode(Packet),
     case proplists:get_value(<<"_msgtype">>,L) of
-        <<"result">> ->
-            Qid = proplists:get_value(<<"qid">>, L),
-            case resolver:qid2pid(Qid) of
-                Qpid when is_pid(Qpid) ->
-                    {struct, L2} = proplists:get_value(<<"result">>, L),
-                    HttpPort = proplists:get_value(<<"port">>, L, 60210),
-                    Sid = proplists:get_value(<<"sid">>, L2),
-                    Url = io_lib:format("http://~w.~w.~w.~w:~w/sid/~s",
-                                        [A,B,C,D,HttpPort,Sid]),
-                    qry:add_result(Qpid, {struct, 
-                                          [{<<"url">>, list_to_binary(Url)}|L2]}),
-                    {noreply, State};
-                _ ->
-                    {noreply, State}
-            end;
-        
         <<"rq">> ->
             Qid = proplists:get_value(<<"qid">>, L),
             % do nothing if we dispatched, or already received this qid
             case ets:lookup(State#state.seenqids, Qid) of
-                [{Qid, true}] -> {noreply, State};
-                _ ->           
+                [{Qid, true}] -> 
+                    ?LOG(info, "ignoring dupe query from ~p, ~s ~s", [Ip, Qid, Packet]),
+                    {noreply, State};
+                _ ->
+                    ?LOG(info, "received query from ~p, ~s: ~s", [Ip, Qid, Packet]),
                     ets:insert(State#state.seenqids, {Qid,true}),
                     This = self(),
                     Cbs = [ fun(Ans)-> ?MODULE:send_response(This, Ans, Qid, Ip, State#state.port) end ],
-                    resolver:dispatch({struct,L}, Qid, Cbs),
+					Qry = #qry{obj = {struct, L}, qid = Qid, local = false},
+                    resolver:dispatch(Qry, Cbs),
                     {noreply, State}
             end;
             
         _ -> {noreply, State}
-    end.
-    
+    end;
+
+% msg on the direct socket = a direct response to us from a query
+handle_info({udp, Sock, {A,B,C,D}=Ip, _InPortNo, Packet}, State = #state{sockp=Sock}) ->
+    {struct, L} = mochijson2:decode(Packet),
+    case proplists:get_value(<<"_msgtype">>,L) of
+        <<"result">> ->
+            Qid = proplists:get_value(<<"qid">>, L),
+			?LOG(info, "received result from ~p, ~s: ~s", [Ip, Qid, Packet]), 
+			case proplists:get_value(<<"result">>, L) of
+				{struct, L2} ->
+					% if this result came with an URL, honor it, else build one.
+					% (yes, it's possible to respond with an external web url,
+					%  but is not normally considered correct behaviour --
+					%  playdar nodes should typically proxy everything)
+					case proplists:get_value(<<"url">>, L2) of
+						undefined ->
+							DefPort = proplists:get_value(port, ?CONFVAL(web, []), ?DEFAULT_WEB_PORT),
+							HttpPort = proplists:get_value(<<"port">>, L, DefPort),
+							Sid = proplists:get_value(<<"sid">>, L2),
+							Url = io_lib:format("http://~w.~w.~w.~w:~w/sid/~s",
+												[A,B,C,D,HttpPort,Sid]),
+							resolver:add_results(Qid, {struct, 
+												  		[{<<"url">>, list_to_binary(Url)}|L2]});
+						_Url ->
+							resolver:add_results(Qid, {struct, L2})
+					end,                            
+					{noreply, State};
+                _ ->
+                    {noreply, State}
+            end;
+		_ -> {noreply, State}
+	end.
+
 terminate(_Reason, State) ->
     gen_udp:close(State#state.sock),
     ok.
