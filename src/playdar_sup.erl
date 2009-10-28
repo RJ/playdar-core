@@ -45,13 +45,17 @@ init([]) ->
     WebConfig = ?CONFVAL(web, DefaultWebConfig),
     io:format("WebConfig = ~p~n", [WebConfig]),
     % Specs:
+	Logger      = { playdar_logger,
+					{playdar_logger, start_link, []},
+					permanent, 5000, worker, [playdar_logger]},
+	
     Web         = { playdar_web,
                     {playdar_web, start, [WebConfig]},
                     permanent, 5000, worker, dynamic},
 
     Auth        = { playdar_auth,
                     {playdar_auth, start_link, []},
-                    permanent, 5000, worker, []},
+                    permanent, 5000, worker, [playdar_auth]},
     
     ResolverSup = { resolver_sup,
                     {resolver_sup, start_link, []},
@@ -70,7 +74,7 @@ init([]) ->
                     permanent, 1000, worker, [] },
 
 
-    Processes = [Reader, ResolverSup, HttpReg, Auth, ModulesSup, Web],
+    Processes = [Logger, Reader, ResolverSup, HttpReg, Auth, ModulesSup, Web],
 
     {ok, {{one_for_one, 10, 10}, Processes}}.
 

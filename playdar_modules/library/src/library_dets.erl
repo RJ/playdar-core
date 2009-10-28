@@ -105,6 +105,7 @@ handle_call({add_file, File, Mtime, Size, Tags}, _From, State) when is_list(Tags
             Album  = clean(Alb),
             Track  = clean(Trk),
             FileId = list_to_binary(File), %TODO hmm.
+			?LOG(library_scan, "~s\t~s\t~s", [File, Artist, Track]),
             Props = [   {url, proplists:get_value(<<"url">>, Tags, <<"">>)},
                         {artist, Art},
                         {album,  Alb},
