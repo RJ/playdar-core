@@ -24,12 +24,12 @@ http_req(Req, DocRoot) ->
                             {"version", <<"0.1.0">>},
                             {"authenticated", true},
                             {"hostname", <<"TODO">>},
-                            {"capabilities", {struct,[]}}
-                                %{"local", {struct,[
-                                %    {"plugin", <<"Local Library">>},
-                                %    {"description", <<"Blah">>}
-                                %]}}
-                            %]}}
+                            {"capabilities", {struct,[
+                                {"audioscrobbler", {struct,[
+                                    {"plugin", <<"Audioscrobbler">>},
+                                    {"description", <<"Scrobbles stuff.">>}
+                                ]}}
+                            ]}}
                         ]},
                     respond(Req, R);
                 {false, _} ->
