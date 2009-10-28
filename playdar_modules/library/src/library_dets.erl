@@ -59,7 +59,7 @@ handle_cast(sync, State) ->
     ?LOG(info, "library synced", []),
     {noreply, State};
 
-handle_cast({resolve, Qry = #qry{qid = Qid, obj = Obj}}, State) ->
+handle_cast({resolve, #qry{qid = Qid, obj = Obj}}, State) ->
     case Obj of
         {struct, Mq} -> % Mq is a proplist
             Hostname = ?CONFVAL(name, "unknown"),
@@ -105,7 +105,7 @@ handle_call({add_file, File, Mtime, Size, Tags}, _From, State) when is_list(Tags
             Album  = clean(Alb),
             Track  = clean(Trk),
             FileId = list_to_binary(File), %TODO hmm.
-			?LOG(library_scan, "~s\t~s\t~s", [File, Artist, Track]),
+			?LOG(library_scan, "~s\t~s\t~s\t~s", [File, Artist, Album, Track]),
             Props = [   {url, proplists:get_value(<<"url">>, Tags, <<"">>)},
                         {artist, Art},
                         {album,  Alb},

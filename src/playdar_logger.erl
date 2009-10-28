@@ -53,8 +53,11 @@ handle_cast({do_log, Mod, Level, Format, Args}, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info(_Info, State) ->
-    {noreply, State}.
+handle_info({'EXIT', Pid, _Reason}, State) ->
+    ?LOG(info, "Removed logger due to pid exiting: ~p", [Pid]),
+    Loggers1 = lists:keydelete(Pid, 1, State#state.loggers),
+    State1 = State#state{loggers = Loggers1},
+    {noreply, State1}.
 
 terminate(_Reason, _State) ->
     ok.

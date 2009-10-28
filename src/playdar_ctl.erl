@@ -109,6 +109,13 @@ numfiles([]) ->
     end.
 
 scan([Dir]) ->
+    % create a new logger that will print to the stdout on this terminal.
+    % it only registers for "library_scan" events.
+    % logger is autoremoved when Pid dies:
+    Pid = spawn_link(fun scanner_log_printer/0),
+    playdar_logger:register_logger(fun(Date, Level, Mod, Line) ->
+                                    Pid ! {Date, Level, Mod, Line}
+                                   end, [library_scan], Pid),
     case resolver:resolver_pid(library_dets) of
         P when is_pid(P) ->
             library_dets:scan(P, Dir),
@@ -152,4 +159,19 @@ dump_library([]) ->
     
     
 
+%% our own generic log printer for stdout of this terminal
+%% log_printer() ->
+%%     receive
+%%         {Date, Level, Mod, Line} ->
+%%             io:format("~s ~w ~w ~s~n", [Date, Level, Mod, Line]),
+%%             log_printer()
+%%     end.
+
+% just used for output from scanner, line is preformatted:
+scanner_log_printer() ->
+    receive
+        {_Date, _Level, _Mod, Line} ->
+            io:format("~s~n", [Line]),
+            scanner_log_printer()
+    end.
 
