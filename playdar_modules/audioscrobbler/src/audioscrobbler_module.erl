@@ -80,7 +80,7 @@ http_req_authed(Req, Path, Qs) ->
 			Trk = proplists:get_value("t", Qs, ""),
 			Src = proplists:get_value("o", Qs, "P"),
 			LenS = proplists:get_value("l", Qs, "0"),
-			Len = erlang:list_to_integer(LenS),
+			Len = erlang:list_to_integer(hd(string:tokens(LenS,"."))),
 			erlscrobbler:start(Art, Alb, Trk, Len, Src),
 			Rep("start");
 		"/resume" -> erlscrobbler:resume(), Rep("resume");
