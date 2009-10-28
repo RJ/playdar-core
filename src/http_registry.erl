@@ -33,6 +33,7 @@ init([]) ->
     P = ets:new(db, []),
     % hardcoded handlers that ship by default:
     register_handler("api", fun playdar_http_api:http_req/2, "Handles core Playdar API"),
+    register_handler("logger", fun playdar_logger:http_req/2, "View log output in realtime", "/logger"),
     {ok, #state{db=P}}.
 
 handle_call(all, _From, State) ->

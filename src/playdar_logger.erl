@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 -export([start_link/0, do_log/4, register_logger/3]).
-
+-export([http_req/2]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
@@ -71,3 +71,36 @@ code_change(_OldVsn, State, _Extra) ->
 
 default_logger(Date, Level, Mod, Line) ->
 	io:format("~s ~w ~w ~s~n", [Date, Level, Mod, Line]).
+
+
+http_req(Req, _DocRoot) ->   
+    % tell the logger to send us all log msgs.
+    % will auto-unregister when our process exits:
+    Pid = self(),
+    playdar_logger:register_logger(fun(Date, Level, Mod, Line) ->
+                                    Pid ! {Date, Level, Mod, Line}
+                                   end, all, Pid),
+    Response = Req:ok({"text/html; charset=utf-8",
+                       [{"Server","Mochiweb-Test"}],
+                       chunked}),
+    % first bit of html we'll send:
+    First = "<html><head><title>Playdar Logger Output</title></head><body><h1>Playdar Log Output</h1>"
+            "<p>This will only update as new lines are logged, so go do something then check this page</p>"
+            "<table>",    
+    Response:write_chunk(First),
+    feed_logger(Response, 0).
+
+feed_logger(Response, N) ->
+    receive
+        {Date, Level, Mod, Line} ->
+            Col = case N rem 2 of
+                      1 -> "white";
+                      0 -> "lightgrey"
+                  end,
+            Html = io_lib:format("<tr style=\"background-color: " ++ Col ++ "\"><td nowrap>~w</td><td nowrap>~s</td><td nowrap>~w<br/>~w</td><td>~s</td></tr>",
+                                 [N, Date, Level, Mod, Line]),
+            Response:write_chunk(Html),
+            feed_logger(Response, N+1)
+    end.
+    
+
