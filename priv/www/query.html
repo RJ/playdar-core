@@ -12,10 +12,10 @@
 </tr>
 {% for r in results %}
 <tr>
-<td><a href="/sid/{{ r.sid }}">{{ r.sid }}</a></td>
-<td>{{ r.score }}</td>
-<td>{{ r.artist }}</td>
-<td>{{ r.track }}</td>
+<td><a href="/sid/{{ r.sid|urlencode }}">{{ r.sid|force_escape }}</a></td>
+<td>{{ r.score|force_escape }}</td>
+<td>{{ r.artist|force_escape }}</td>
+<td>{{ r.track|force_escape }}</td>
 </tr>
 {% endfor %}
 </table>

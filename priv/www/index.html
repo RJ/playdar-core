@@ -10,8 +10,8 @@
 </tr>
 {% for r in resolvers %}
 <tr style="background-color: {% cycle white,lightyellow %}">
-<td>{{ r.name }}</td>
-<td>{{ r.mod }} </td>
+<td>{{ r.name|force_escape }}</td>
+<td>{{ r.mod|force_escape }} </td>
 <td>{{ r.weight }}</td>
 <td>{{ r.targettime }}</td>
 <td>{{ r.localonly }}</td>
@@ -24,13 +24,13 @@
 <table>
 {% for p in http_paths %}
 <tr>
-<td> <b>{{p.prefix}}</b> </td>
+<td> <b>{{p.prefix|force_escape}}</b> </td>
 <td>
 {% if p.menu_url %}
-<a href="{{p.menu_url}}">
+<a href="{{p.menu_url|urlencode}}">
 {% endif %}
 {% if p.menu_text %}
-{{p.menu_text}}
+{{p.menu_text|force_escape}}
 {% endif %}
 {% if p.menu_url %}
 </a>
@@ -43,7 +43,7 @@
 <h3>Protocols Supported</h3>
 <ul>
 {% for p in protocols %}
-<li>{{p}}://</li>
+<li>{{p|force_escape}}://</li>
 {% endfor %}
 </ul>
 

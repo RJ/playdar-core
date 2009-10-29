@@ -49,13 +49,13 @@
     
     <div id="content">
         <form method="post" action="/auth_2/" id="auth">
-            <p>Allow access to Playdar from <a href="{{formvars.website}}">{{formvars.name}}</a></p>
+            <p>Allow access to Playdar from <a href="{{formvars.website|urlencode}}">{{formvars.name|force_escape}}</a></p>
             <p class="buttons">
                 <input type="button" value="Deny" class="button" onclick="window.close();" />
                 <input type="submit" value="Allow" class="confirm button" />
             </p>
             {% for k, v in formvars %}
-            <input type="hidden" name="{{k}}" value="{{v}}" />
+            <input type="hidden" name="{{k|force_escale}}" value="{{v|urlencode}}" />
             {% endfor %}
         </form>
     </div>

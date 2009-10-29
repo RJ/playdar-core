@@ -37,8 +37,8 @@
     </a>
     
     <div id="content">
-        <p>You have allowed access to Playdar from <a href="{{website}}">{{name}}</a></p>
+        <p>You have allowed access to Playdar from <a href="{{website|urlencode}}">{{name|force_escape}}</a></p>
         <p>Copy and paste this authentication <strong>token</strong> into the status bar then close this window.</p>
-        <p>Token: <input type="text" value="{{authcode}}" size="35" onclick="this.focus(); this.select();" />
+        <p>Token: <input type="text" value="{{authcode|urlencode}}" size="35" onclick="this.focus(); this.select();" />
 </body>
 </html>
