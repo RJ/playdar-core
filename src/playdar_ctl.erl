@@ -52,7 +52,7 @@ usage() ->
     lists:foreach(fun({Cmd, Desc, _Fun})->
                           Pad = string:chars($\s, 14 - length(Cmd)),
                           io:format("  ~s~s~s~n",[Cmd, Pad, Desc])
-                  end, [ A || A = {Z,X,C} <- ets:tab2list(ctlcmds), X /= "" ]),
+                  end, [ A || A = {_Z,X,_C} <- ets:tab2list(ctlcmds), X /= "" ]),
     io:format("~n"),
     ?OK.
 
@@ -98,7 +98,7 @@ ping([]) ->
     ?OK.
 
 numfiles([]) ->
-    case resolver:resolver_pid(library_dets) of
+    case playdar_resolver:resolver_pid(library_dets) of
         P when is_pid(P) ->
             Num = proplists:get_value(num_files, library_dets:stats(P), 0),
             io:format("~w~n", [Num]),
@@ -116,7 +116,7 @@ scan([Dir]) ->
     playdar_logger:register_logger(fun(Date, Level, Mod, Line) ->
                                     Pid ! {Date, Level, Mod, Line}
                                    end, [library_scan], Pid),
-    case resolver:resolver_pid(library_dets) of
+    case playdar_resolver:resolver_pid(library_dets) of
         P when is_pid(P) ->
             library_dets:scan(P, Dir),
             ?OK;
@@ -134,7 +134,7 @@ stop([]) ->
 	?OK.
 	
 resolvers([]) ->
-    R = resolver:resolvers(),
+    R = playdar_resolver:resolvers(),
     io:format("   W    TT   Name~n"),
     lists:foreach(fun(L) ->
                           io:format("~4.w~6.w   ~s~n", [ proplists:get_value(weight, L),
@@ -144,7 +144,7 @@ resolvers([]) ->
     ?OK.
 
 dump_library([]) ->
-    All = library_dets:dump_library(resolver:resolver_pid(library_dets)),
+    All = library_dets:dump_library(playdar_resolver:resolver_pid(library_dets)),
     
     lists:foreach(fun(P) ->
                           io:format("~s\t~s\t~s\t~s\t~s\t~w\n",

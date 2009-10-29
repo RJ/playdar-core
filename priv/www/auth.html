@@ -55,7 +55,7 @@
                 <input type="submit" value="Allow" class="confirm button" />
             </p>
             {% for k, v in formvars %}
-            <input type="hidden" name="{{k|force_escale}}" value="{{v|urlencode}}" />
+            <input type="hidden" name="{{k|force_escape}}" value="{{v|force_escape}}" />
             {% endfor %}
         </form>
     </div>

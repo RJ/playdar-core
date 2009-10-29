@@ -82,7 +82,6 @@ http_req(Req, DocRoot) ->
 						 Str    ->
 							 [ list_to_atom(S) || S <- string:tokens(Str, ",") ]
 					 end,
-	?LOG(info, "levstr: ~s levels: ~p", [LevStr, Levels]),
 	case Req:get(path) of
 		"/logger" -> 
 			Url = "/logger/feed?levels=" ++ LevStr,

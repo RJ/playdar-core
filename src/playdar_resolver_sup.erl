@@ -1,5 +1,5 @@
 % Supervisor that the resolver dynamically adds children to
--module(resolver_sup).
+-module(playdar_resolver_sup).
 
 -behaviour(supervisor).
 
@@ -13,8 +13,8 @@ start_link() ->
 
 init([]) ->
 
-    Resolver    = { resolver, 
-                    {resolver, start_link, []},
-                    permanent, 10, worker, [] },
+    Resolver    = { playdar_resolver, 
+                    {playdar_resolver, start_link, []},
+                    permanent, 10, worker, [playdar_resolver] },
     
     {ok, {{one_for_one, 10, 10}, [Resolver]}}.

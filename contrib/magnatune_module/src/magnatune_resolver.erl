@@ -31,7 +31,7 @@ stats(Pid)              -> gen_server:call(Pid, stats).
 %% --------------------------------------------------------------------
 init([]) ->
 	{ok, LibPid} = gen_server:start_link(library_dets, ["magnatune"], []),
-	resolver:add_resolver(?MODULE, self()),
+	playdar_resolver:add_resolver(?MODULE, self()),
 	?LOG(info, "Magnatune library pid: ~p",[LibPid]),
 	Mpid = self(),
 	spawn(fun()->check_index(Mpid, LibPid)end),

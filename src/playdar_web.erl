@@ -47,8 +47,8 @@ loop1(Req, DocRoot) ->
     case Path of
         "" -> 
             Resolvers = [ [{"mod", atom_to_list(proplists:get_value(mod, Pl))}|proplists:delete(mod,Pl)]
-                               || Pl <- resolver:resolvers() ],
-            HttpMenus = http_registry:get_all(),
+                               || Pl <- playdar_resolver:resolvers() ],
+            HttpMenus = playdar_http_registry:get_all(),
 			% change bools to strings, for rendering (yuk, TODO hack erlydtl)
 			Resolvers1 = [  begin
 							    LOS = case proplists:get_value(localonly, Resolver, false) of
@@ -66,7 +66,7 @@ loop1(Req, DocRoot) ->
         % serving a file that was found by a query, based on SID:
         "sid/" ++ SidL ->
             Sid = list_to_binary(SidL),
-            case resolver:result(Sid) of
+            case playdar_resolver:result(Sid) of
                 undefined ->
                     Req:not_found();
                 A ->
@@ -118,7 +118,7 @@ loop1(Req, DocRoot) ->
             if
                 AllPresent and FormTokOk ->
                     % create the entry in the auth db:
-                    AuthCode = utils:uuid_gen(),
+                    AuthCode = playdar_utils:uuid_gen(),
                     % m_pauth->create_new(tok, req.postvar("website"), req.postvar("name"), req.useragent() );
                     playdar_auth:create(AuthCode, [ {website, proplists:get_value("website",Qs, "")},
                                             {name, proplists:get_value("name",Qs, "")}
@@ -155,9 +155,9 @@ loop1(Req, DocRoot) ->
             end;
 
         "queries" ->
-            Qids = resolver:queries(),
+            Qids = playdar_resolver:queries(),
             Fun = fun(Qid) ->
-						  {Results, #qry{obj = Qryobj}, Solved} = resolver:results(Qid),
+						  {Results, #qry{obj = Qryobj}, Solved} = playdar_resolver:results(Qid),
 						  Json = mochijson2:encode(Qryobj),
                 		  NumResults = length(Results),
                 		  [{qid,Qid}, {solved, Solved}, 
@@ -168,7 +168,7 @@ loop1(Req, DocRoot) ->
         
         "queries/" ++ QidL ->
 			Qid = list_to_binary(QidL),
-            case resolver:results(Qid) of
+            case playdar_resolver:results(Qid) of
                 undefined -> Req:not_found();
                 {ResultsList, #qry{obj = Qryobj}, Solved} ->
                     Results = [ [{list_to_atom(binary_to_list(K)),V}||{K,V}<-L] 
@@ -206,7 +206,7 @@ loop1(Req, DocRoot) ->
 		
         % hand off dynamically:
         _ -> 
-            case http_registry:get_handler(Req:get(path)) of
+            case playdar_http_registry:get_handler(Req:get(path)) of
                 undefined ->
                     Req:not_found();     
                 Handler ->

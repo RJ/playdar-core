@@ -22,7 +22,7 @@ localonly(_Pid)			-> true.
 
 %% gen_server callbacks
 init([]) ->
-    resolver:add_resolver(?MODULE, self()),
+    playdar_resolver:add_resolver(?MODULE, self()),
     {ok, #state{}}.
 
 handle_call(_Request, _From, State) ->
@@ -42,7 +42,7 @@ handle_cast({resolve, #qry{obj = Q, qid = Qid}}, State) ->
                                 {<<"score">>, 0.2},
 								{<<"url">>, <<"http://www.playdar.org/hiding.mp3">>}
                             ]},
-					resolver:add_results(Qid, Rep);
+					playdar_resolver:add_results(Qid, Rep);
                 _ -> noop
             end;
         _ -> noop

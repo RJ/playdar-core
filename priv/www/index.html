@@ -27,7 +27,7 @@
 <td> <b>{{p.prefix|force_escape}}</b> </td>
 <td>
 {% if p.menu_url %}
-<a href="{{p.menu_url|urlencode}}">
+<a href="{{p.menu_url|force_escape}}">
 {% endif %}
 {% if p.menu_text %}
 {{p.menu_text|force_escape}}

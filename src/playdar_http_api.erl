@@ -69,7 +69,7 @@ http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
             Album  = proplists:get_value("album", Qs, ""),
             Track  = proplists:get_value("track", Qs, ""),
 			Qid    = case proplists:get_value("qid", Qs) of
-                		undefined -> utils:uuid_gen();
+                		undefined -> playdar_utils:uuid_gen();
                 		Str -> list_to_binary(Str)
             		 end,
 			Q0 = {struct,[
@@ -85,7 +85,7 @@ http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
 						{struct, [{<<"mimetypes">>, MT} | L]}
 				end,            
 			Qry = #qry{ qid = Qid, obj = Q, local = true },
-            Qid = resolver:dispatch(Qry),
+            Qid = playdar_resolver:dispatch(Qry),
             R = {struct,[
                     {"qid", Qid}
                 ]},
@@ -94,7 +94,7 @@ http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
             
         "get_results" ->
             Qid = list_to_binary(proplists:get_value("qid", Qs)),
-			case resolver:results(Qid) of
+			case playdar_resolver:results(Qid) of
 				undefined ->
 					Req:not_found();
 				{Results, #qry{obj = Q}, Solved} ->

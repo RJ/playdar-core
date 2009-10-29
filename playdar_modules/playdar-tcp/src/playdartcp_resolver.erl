@@ -37,10 +37,10 @@ init([]) ->
     {ok,_} = playdartcp_router:start_link(?CONFVAL({playdartcp,port},60211)),
     % Connect to any peers listed in the config file:
     lists:foreach(fun({Ip,Port})->playdartcp_router:connect(Ip,Port)end, ?CONFVAL({playdartcp,peers},[])),
-    % Register us as a playdar resolver:
-    resolver:add_resolver(?MODULE, self()),
+    % Register us as a playdar resolver
+    playdar_resolver:add_resolver(?MODULE, self()),
     % Register our web request handler (for our localhost web gui)
-    http_registry:register_handler("playdartcp", fun playdartcp_web:http_req/2, "playdartcp Connection Status Page", "/playdartcp"),
+    playdar_http_registry:register_handler("playdartcp", fun playdartcp_web:http_req/2, "playdartcp Connection Status Page", "/playdartcp"),
 	% register our ctl cmd:
 	playdar_ctl:register_command("peers", "List current playdartcp connections",
 							 fun peers/1),

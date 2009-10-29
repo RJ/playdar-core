@@ -6,7 +6,7 @@
 %%
 %% Queries are uniquely identified by GUIDs called Query IDs, "Qids"
 %% Results to queries also have GUIDs called Source IDs, "Sids"
--module(resolver).
+-module(playdar_resolver).
 -behaviour(gen_server).
 -include("playdar.hrl").
 -define(MIN_SCORE, 0.6).
@@ -56,7 +56,7 @@ queries()               -> gen_server:call(?MODULE, queries).
 % get pid of loaded resolver module (mainly for debugging)
 resolver_pid(Mod)  -> 
     case lists:filter(fun(R)->proplists:get_value(mod,R) == Mod end, 
-                      resolver:resolvers()) of
+                      ?MODULE:resolvers()) of
         [] -> undefined;
         [List] -> proplists:get_value(pid,List)
     end.
@@ -92,17 +92,17 @@ init([]) ->
     % Load script-resolvers:
     Scripts = ?CONFVAL(scripts, []),
     ScriptSpecs = [ {list_to_atom(Script), 
-                     {script_resolver, start_link, [Script]}, 
-                     transient, 5, worker, [script_resolver]} 
+                     {playdar_script_resolver, start_link, [Script]}, 
+                     transient, 5, worker, [playdar_script_resolver]} 
                    || Script <- Scripts ],
     ok = supervisor:check_childspecs(ScriptSpecs),
     Specs = ScriptSpecs,    
     % Adding to our own supervisor from here must be done by another proc or
     % it deadlocks:
     lists:foreach(fun(Spec) -> 
-                    spawn(supervisor, start_child, [resolver_sup, Spec])
+                    spawn(supervisor, start_child, [playdar_resolver_sup, Spec])
                   end, Specs),
-    % Resolvers will call resolver:add_resolver() to register themselves
+    % Resolvers will call playdar_resolver:add_resolver() to register themselves
     % once they've finished their startup routines.
     {ok, #state{    queries=Tid, 
                     sources=Tid2, 
@@ -290,7 +290,7 @@ when is_record(Qry, qry) ->
 			% same weight, dispatch immediately
 			?LOG(pipeline, "Dispatching to ~s", [H#resolver.name]),
 			(H#resolver.mod):resolve(H#resolver.pid, Qry),
-			Time = utils:min(H#resolver.targettime, LastTime),
+			Time = playdar_utils:min(H#resolver.targettime, LastTime),
 			run_pipeline(Qry, Resolvers, {LastWeight, Time});
 		false ->
 			timer:sleep(LastTime),
@@ -339,7 +339,7 @@ tidy_results(Results) ->
 				% add a sid if one doesnt exist
 				{R2, Sid} = case proplists:get_value(<<"sid">>, R1) of
 								undefined ->
-									Uuid = utils:uuid_gen(),
+									Uuid = playdar_utils:uuid_gen(),
 									{[{<<"sid">>, Uuid} | R1], Uuid};
 								S ->
 									{R1, S}

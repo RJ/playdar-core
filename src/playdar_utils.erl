@@ -1,4 +1,4 @@
--module(utils).
+-module(playdar_utils).
 -include("playdar.hrl").
 -export([uuid_gen/0, min/2, max/2, levenshtein/2, list_agg/1, calc_score/2 ]).
 -import(random).
@@ -22,13 +22,13 @@ get_parts(<<TL:32, TM:16, THV:16, CSR:8, CSL:8, N:48>>) ->
 
 % score betweek 0-1 when ArtClean is original, Art is the input/query etc
 calc_score({ArtClean, Art}, {TrkClean, Trk}) ->
-    ArtDist = utils:levenshtein(Art, ArtClean),
-    TrkDist = utils:levenshtein(Trk, TrkClean),
+    ArtDist = levenshtein(Art, ArtClean),
+    TrkDist = levenshtein(Trk, TrkClean),
     % calc 0-1 scores for artist and track match:
-    MaxArt = utils:max(0.001, length(ArtClean)),
-    MaxTrk = utils:max(0.001, length(TrkClean)),
-    ArtScore0 = utils:max(0, length(ArtClean) - ArtDist) / MaxArt,
-    TrkScore0 = utils:max(0, length(TrkClean) - TrkDist) / MaxTrk,
+    MaxArt = max(0.001, length(ArtClean)),
+    MaxTrk = max(0.001, length(TrkClean)),
+    ArtScore0 = max(0, length(ArtClean) - ArtDist) / MaxArt,
+    TrkScore0 = max(0, length(TrkClean) - TrkDist) / MaxTrk,
     % exagerate lower scores
     ArtScore = 1-math:cos(ArtScore0*math:pi()/2),
     TrkScore = 1-math:cos(TrkScore0*math:pi()/2),

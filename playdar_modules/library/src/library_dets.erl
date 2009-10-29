@@ -52,7 +52,7 @@ init([]) ->
                [proplists:get_value(size, dets:info(Fdb), -1)]),
     % start the scanner (kind of a hack, but deadlock if we do it in init here):
     self() ! start_scanner,        
-    resolver:add_resolver(?MODULE, self()),
+    playdar_resolver:add_resolver(?MODULE, self()),
     {ok, #state{scanner=undefined, ndb=Ndb, fdb=Fdb, customname=""}}.
 
 handle_cast(sync, State) -> 
@@ -82,7 +82,7 @@ handle_cast({resolve, #qry{qid = Qid, obj = Obj}}, State) ->
                                 {<<"size">>, proplists:get_value(size, Props)},
                                 {<<"source">>, list_to_binary(Name)}
                             ]},
-				resolver:add_results(Qid, Rep)           
+				playdar_resolver:add_results(Qid, Rep)           
             end,
             Art = proplists:get_value(<<"artist">>,Mq,<<"">>),
             Trk = proplists:get_value(<<"track">>,Mq,<<"">>),
@@ -154,7 +154,7 @@ handle_call(_Msg, _From, State) -> {reply, ok, State}.
 
 handle_info(start_scanner, State) ->
     ScannerSpec = {scanner, {scanner, start_link, [self()]}, permanent, brutal_kill, worker, [scanner]},
-    {ok, S} = supervisor:start_child(modules_sup, ScannerSpec),
+    {ok, S} = supervisor:start_child(playdar_modules_sup, ScannerSpec),
     {noreply, State#state{scanner=S}};
 
 handle_info(_Msg, State) -> {noreply, State}.
@@ -174,7 +174,7 @@ code_change(_OldVsn, State, _Extra) ->
 clean(Name) when is_binary(Name) -> string:to_lower(binary_to_list(Name)).
 
 % ngram("abcdabcd") -> [{"dab",1},{"cda",1},{"bcd",2},{"abc",2}]
-ngram( In )                     when is_list(In)     -> utils:list_agg(lists:sort(ngram( string:to_lower(In), [] ))).
+ngram( In )                     when is_list(In)     -> playdar_utils:list_agg(lists:sort(ngram( string:to_lower(In), [] ))).
 ngram( "", Ngrams )                                  -> Ngrams;
 ngram( [A,B,C|Rem]=In, Ngrams ) when length(In) > 3  -> ngram( [B,C|Rem], [ [A,B,C] | Ngrams ] );
 ngram( In, Ngrams )             when length(In) =< 3 -> ngram( "", [ In | Ngrams ] ).
@@ -191,7 +191,7 @@ search(Art,_Alb,Trk,Mimetypes,State) ->
               [ Fid || {_Ngram, Fid} <- D ]
           end || Ng <- L ],
     C = lists:sublist(lists:reverse( % top 10
-         lists:keysort(2, utils:list_agg(  % aggregate/count dupes
+         lists:keysort(2, playdar_utils:list_agg(  % aggregate/count dupes
            lists:sort(lists:flatten(R))
          ))
         ),10),
@@ -210,8 +210,8 @@ search(Art,_Alb,Trk,Mimetypes,State) ->
 					Scoreit = fun() ->
 								ArtClean = proplists:get_value(artist_clean, FL),
 								TrkClean = proplists:get_value(track_clean, FL),
-								Score = utils:calc_score({ArtClean, Art}, 
-														 {TrkClean, Trk}),
+								Score = playdar_utils:calc_score({ArtClean, Art}, 
+																 {TrkClean, Trk}),
 								{ FL, Score }
 							  end,
 					case Mimetypes of

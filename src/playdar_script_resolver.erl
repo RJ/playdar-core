@@ -1,4 +1,4 @@
--module(script_resolver).
+-module(playdar_script_resolver).
 
 -behaviour(gen_server).
 -behaviour(playdar_resolver).
@@ -44,7 +44,7 @@ handle_info({Port, {data, Data}}, #state{port=Port} = State) ->
         <<"results">> ->
             Qid = proplists:get_value(<<"qid">>, L),
 			Results = proplists:get_value(<<"results">>, L),
-			resolver:add_results(Qid, Results),
+			playdar_resolver:add_results(Qid, Results),
 			{noreply, State};
         
         <<"settings">> ->
@@ -53,7 +53,7 @@ handle_info({Port, {data, Data}}, #state{port=Port} = State) ->
             Weight  = proplists:get_value(<<"weight">>, L, State#state.weight),
             TT      = proplists:get_value(<<"targettime">>, L, State#state.tt),
 			Local   = proplists:get_value(<<"localonly">>, L, State#state.localonly),
-            resolver:add_resolver(?MODULE, Name, Weight, TT, self()),
+            playdar_resolver:add_resolver(?MODULE, Name, Weight, TT, self()),
             {noreply, State#state{	name=Name, 
 									weight=Weight, 
 									tt=TT, 

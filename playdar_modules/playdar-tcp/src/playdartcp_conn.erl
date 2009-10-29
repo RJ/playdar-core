@@ -112,7 +112,7 @@ handle_info({tcp, Sock, Packet}, State = #state{sock=Sock}) ->
 % Refwd query that originally arrived at this connection
 % but only if not already solved!
 handle_info({fwd_query, #qry{qid=Qid, obj=Q}}, State = #state{authed=true}) ->
-    case resolver:solved(Qid) of
+    case playdar_resolver:solved(Qid) of
         true ->
             ?LOG(info, "Not fwding query ~p already solved", [Qid]),
             {noreply, State};
@@ -187,7 +187,7 @@ handle_packet({rq, Qid, {struct, L}}, State = #state{authed=true, weshare=true})
             ets:insert(State#state.seenqids, {Qid,true}),
             Cbs = [ fun(Ans)-> playdartcp_router:send_query_response(Ans, Qid, State#state.name) end ],
 			Qry = #qry{obj = {struct, L}, qid = Qid, local = false},
-            resolver:dispatch(Qry, Cbs),
+            playdar_resolver:dispatch(Qry, Cbs),
             % Schedule this query to be sent to all other peers after a delay.
             % When the time is up, the query will be fwded ONLY IF the query is
             % still in an unsolved state.
@@ -209,12 +209,12 @@ handle_packet({rq, Qid, {struct, L}}, State = #state{authed=true, weshare=true})
 handle_packet({result, Qid, {struct, L}}, State = #state{authed=true}) when is_list(L) ->
 	Sid = proplists:get_value(<<"sid">>, L),
 	Url = io_lib:format("playdartcp://~s\t~s", [Sid, State#state.name]),
-	resolver:add_results(Qid, {struct, 
+	playdar_resolver:add_results(Qid, {struct, 
 							   [{<<"url">>, list_to_binary(Url)}|L]}),
 	{noreply, State};
 
 handle_packet({request_sid, Ref, Sid}, State = #state{authed=true, weshare=true}) ->
-	case resolver:result(Sid) of
+	case playdar_resolver:result(Sid) of
 		undefined ->
             ?LOG(info,"sid not found: ~p", [Sid]),
 			Msg = ?T2B({sid_response, Ref, Sid, {error, 404}}),
@@ -262,7 +262,7 @@ handle_packet(Data, State) ->
 
 
 stream_result(Ref, Sid, Sock, ConnPid) ->
-	A = resolver:result(Sid),
+	A = playdar_resolver:result(Sid),
 	case playdar_reader_registry:get_streamer(A, self(), Ref) of
 		undefined ->
 			Msg = ?T2B({sid_response, Ref, Sid, {error, 5031}}),

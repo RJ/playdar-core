@@ -1,6 +1,6 @@
 % Keeps a map of url prefix -> module/handler
 % so plugins can register to handle certain web requests.
--module(http_registry).
+-module(playdar_http_registry).
 
 -behaviour(gen_server).
 

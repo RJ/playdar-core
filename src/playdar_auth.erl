@@ -71,7 +71,7 @@ handle_call({consume_formtoken, Token}, _From, State) ->
     end;
 
 handle_call(gen_formtoken, _From, State) ->
-    Tok = binary_to_list(utils:uuid_gen()),
+    Tok = binary_to_list(playdar_utils:uuid_gen()),
     ets:insert(State#state.tokdb, {Tok, now()}),
     {reply, Tok, State}.
 

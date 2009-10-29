@@ -34,7 +34,7 @@ init([]) ->
 		false ->
 			?LOG(info, "Starting Audioscrobbler service, username: ~s", [U]),
 			{ok, _} = erlscrobbler:start_link(U, P),
-			http_registry:register_handler("audioscrobbler", 
+			playdar_http_registry:register_handler("audioscrobbler", 
 										   fun ?MODULE:http_req/2, 
 										   "Audioscrobbler support", 
 										   "/audioscrobbler"),

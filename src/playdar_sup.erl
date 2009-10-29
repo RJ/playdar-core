@@ -57,21 +57,21 @@ init([]) ->
                     {playdar_auth, start_link, []},
                     permanent, 5000, worker, [playdar_auth]},
     
-    ResolverSup = { resolver_sup,
-                    {resolver_sup, start_link, []},
-                    transient, infinity, supervisor, [resolver_sup]},
+    ResolverSup = { playdar_resolver_sup,
+                    {playdar_resolver_sup, start_link, []},
+                    transient, infinity, supervisor, [playdar_resolver_sup]},
 
     Reader      = { playdar_reader_registry, 
                     {playdar_reader_registry, start_link, []},
                     permanent, 1000, worker, [] },
     
-    ModulesSup  = { modules_sup,
-                    {modules_sup, start_link, []},
-                    transient, infinity, supervisor, [modules_sup]},
+    ModulesSup  = { playdar_modules_sup,
+                    {playdar_modules_sup, start_link, []},
+                    permanent, infinity, supervisor, [playdar_modules_sup]},
 
-    HttpReg     = { http_registry, 
-                    {http_registry, start_link, []},
-                    permanent, 1000, worker, [] },
+    HttpReg     = { playdar_http_registry, 
+                    {playdar_http_registry, start_link, []},
+                    permanent, 1000, worker, [playdar_http_registry] },
 
 
     Processes = [Logger, Reader, ResolverSup, HttpReg, Auth, ModulesSup, Web],

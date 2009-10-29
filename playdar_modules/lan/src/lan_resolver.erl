@@ -46,7 +46,7 @@ init([]) ->
     % Normal socket, which direct replies are sent to:
     {ok, SockP}= gen_udp:open(Port, [binary, 
                                      {reuseaddr, true}, {ip, {0,0,0,0}}]),
-    resolver:add_resolver(?MODULE, self()),
+    playdar_resolver:add_resolver(?MODULE, self()),
     {ok, #state{sock=Sock, 
                 sockp=SockP,
                 seenqids=SQ, 
@@ -108,7 +108,7 @@ handle_info({udp, Sock, Ip, _InPortNo, Packet}, State = #state{sock=Sock}) ->
                     This = self(),
                     Cbs = [ fun(Ans)-> ?MODULE:send_response(This, Ans, Qid, Ip, State#state.port) end ],
 					Qry = #qry{obj = {struct, L}, qid = Qid, local = false},
-                    resolver:dispatch(Qry, Cbs),
+                    playdar_resolver:dispatch(Qry, Cbs),
                     {noreply, State}
             end;
             
@@ -135,10 +135,10 @@ handle_info({udp, Sock, {A,B,C,D}=Ip, _InPortNo, Packet}, State = #state{sockp=S
 							Sid = proplists:get_value(<<"sid">>, L2),
 							Url = io_lib:format("http://~w.~w.~w.~w:~w/sid/~s",
 												[A,B,C,D,HttpPort,Sid]),
-							resolver:add_results(Qid, {struct, 
+							playdar_resolver:add_results(Qid, {struct, 
 												  		[{<<"url">>, list_to_binary(Url)}|L2]});
 						_Url ->
-							resolver:add_results(Qid, {struct, L2})
+							playdar_resolver:add_results(Qid, {struct, L2})
 					end,                            
 					{noreply, State};
                 _ ->

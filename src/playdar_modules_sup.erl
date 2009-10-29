@@ -1,4 +1,4 @@
--module(modules_sup).
+-module(playdar_modules_sup).
 -behaviour(supervisor).
 -include("playdar.hrl").
 -export([init/1, start_link/0]).
