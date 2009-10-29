@@ -87,8 +87,9 @@ handle_cast({resolve, #qry{qid = Qid, obj = Obj}}, State) ->
             Art = proplists:get_value(<<"artist">>,Mq,<<"">>),
             Trk = proplists:get_value(<<"track">>,Mq,<<"">>),
             Alb = proplists:get_value(<<"album">>,Mq,<<"">>),
+			Mimetypes = proplists:get_value(<<"mimetypes">>,Mq),
             Now = now(),
-            Files = search(clean(Art),clean(Alb),clean(Trk),State),
+            Files = search(clean(Art),clean(Alb),clean(Trk),Mimetypes,State),
             Time = timer:now_diff(now(), Now),
             ?LOG(info, "Library search took: ~wms for ~s - ~s",[Time/1000, Art, Trk]),
             lists:foreach(Report, Files);
@@ -182,7 +183,7 @@ ngram( In, Ngrams )             when length(In) =< 3 -> ngram( "", [ In | Ngrams
 
 % Lame fuzzy search algorithm using ngrams to find candidates, then
 % using edit-distance to rank+score candidates.
-search(Art,_Alb,Trk,State) ->
+search(Art,_Alb,Trk,Mimetypes,State) ->
     L = [{artist, list_to_atom(N)} || {N,_Num} <- ngram(Art)] ++
         [{track,  list_to_atom(N)} || {N,_Num} <- ngram(Trk)],
     R = [ begin
@@ -206,11 +207,24 @@ search(Art,_Alb,Trk,State) ->
 		false	-> ok
 	end,
     Results = [ begin
-                    ArtClean = proplists:get_value(artist_clean, FL),
-                    TrkClean = proplists:get_value(track_clean, FL),
-                    Score = utils:calc_score({ArtClean, Art}, 
-                                             {TrkClean, Trk}),
-                    { FL, Score }
+					Scoreit = fun() ->
+								ArtClean = proplists:get_value(artist_clean, FL),
+								TrkClean = proplists:get_value(track_clean, FL),
+								Score = utils:calc_score({ArtClean, Art}, 
+														 {TrkClean, Trk}),
+								{ FL, Score }
+							  end,
+					case Mimetypes of
+						List when is_list(List) ->
+							case lists:member(proplists:get_value(mimetype, FL), Mimetypes) of
+								true ->					
+									Scoreit();	
+								false ->
+									{ FL, 0 }
+							end;
+						_ -> % query doesnt care about mimetype
+							Scoreit()
+					end
                 end
                 || {_FileId, FL} <- Files ],
     % sort and return to the top N results:

@@ -25,7 +25,7 @@ http_req(Req, DocRoot) ->
                             {"authenticated", true},
                             {"hostname", <<"TODO">>},
                             {"capabilities", {struct,[
-                                {"audioscrobbler", {struct,[
+                                {"audioscrobbler", {struct,[ %TODO dynamically
                                     {"plugin", <<"Audioscrobbler">>},
                                     {"description", <<"Scrobbles stuff.">>}
                                 ]}}
@@ -54,19 +54,29 @@ http_req(Req, DocRoot) ->
 
 http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
     case Method of
+		% TODO resolve-json, where you just pass the JSON obj instead of many url params.
+		% this would be completely generic and work for non-music stuff just the same.
+		
         "resolve" ->
             Artist = proplists:get_value("artist", Qs, ""),
             Album  = proplists:get_value("album", Qs, ""),
             Track  = proplists:get_value("track", Qs, ""),
-            Qid    = case proplists:get_value("qid", Qs) of
+			Qid    = case proplists:get_value("qid", Qs) of
                 		undefined -> utils:uuid_gen();
                 		Str -> list_to_binary(Str)
             		 end,
-            Q = {struct,[
+			Q0 = {struct,[
                     {<<"artist">>, list_to_binary(Artist)}, 
                     {<<"album">>,  list_to_binary(Album)}, 
                     {<<"track">>,  list_to_binary(Track)}
                 ]},
+			Q = case proplists:get_value("mimetypes", Qs) of
+					undefined -> Q0;
+					Strlist ->
+						MT = [ list_to_binary(M) || M <- string:tokens(Strlist,",") ],
+						{struct, L} = Q0,
+						{struct, [{<<"mimetypes">>, MT} | L]}
+				end,            
 			Qry = #qry{ qid = Qid, obj = Q, local = true },
             Qid = resolver:dispatch(Qry),
             R = {struct,[
