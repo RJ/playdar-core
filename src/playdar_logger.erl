@@ -77,14 +77,22 @@ http_req(Req, _DocRoot) ->
     % tell the logger to send us all log msgs.
     % will auto-unregister when our process exits:
     Pid = self(),
+	Qs = Req:parse_qs(),
+	Levels = case proplists:get_value("levels", Qs, "") of
+		""  -> all;
+		Str ->
+			[ list_to_atom(S) || S <- string:tokens(Str, ",") ]
+	end,
     playdar_logger:register_logger(fun(Date, Level, Mod, Line) ->
                                     Pid ! {Date, Level, Mod, Line}
-                                   end, all, Pid),
+                                   end, Levels, Pid),
     Response = Req:ok({"text/html; charset=utf-8",
                        [{"Server","Mochiweb-Test"}],
                        chunked}),
     % first bit of html we'll send:
-    First = "<html><head><title>Playdar Logger Output</title></head><body><h1>Playdar Log Output</h1>"
+    First = "<html><head><title>Playdar Logger Output</title></head><body>"
+			"<h1>Playdar Log Output</h1>"
+			"<h2>Levels: "  ++ io_lib:format("~p", [Levels]) ++ "</h2>"
             "<p>This will only update as new lines are logged, so go do something then check this page</p>"
             "<table>",    
     Response:write_chunk(First),
