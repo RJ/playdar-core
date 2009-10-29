@@ -56,6 +56,13 @@ http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
     case Method of
 		% TODO resolve-json, where you just pass the JSON obj instead of many url params.
 		% this would be completely generic and work for non-music stuff just the same.
+		%
+		% Notes on github issue #6
+		% ------------------------
+		% regarding seeding the resolver with an existing, known result url:
+		% i'd like to do this by having the client call resolve and passing the
+		% json query object with preexisting results:[..] field, which is just
+		% copied verbatim as if a resolver found it.
 		
         "resolve" ->
             Artist = proplists:get_value("artist", Qs, ""),
