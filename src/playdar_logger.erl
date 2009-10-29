@@ -73,42 +73,45 @@ default_logger(Date, Level, Mod, Line) ->
 	io:format("~s ~w ~w ~s~n", [Date, Level, Mod, Line]).
 
 
-http_req(Req, _DocRoot) ->   
-    % tell the logger to send us all log msgs.
-    % will auto-unregister when our process exits:
-    Pid = self(),
+http_req(Req, DocRoot) ->
 	Qs = Req:parse_qs(),
-	Levels = case proplists:get_value("levels", Qs, "") of
-		""  -> all;
-		Str ->
-			[ list_to_atom(S) || S <- string:tokens(Str, ",") ]
-	end,
-    playdar_logger:register_logger(fun(Date, Level, Mod, Line) ->
-                                    Pid ! {Date, Level, Mod, Line}
-                                   end, Levels, Pid),
-    Response = Req:ok({"text/html; charset=utf-8",
-                       [{"Server","Mochiweb-Test"}],
-                       chunked}),
-    % first bit of html we'll send:
-    First = "<html><head><title>Playdar Logger Output</title></head><body>"
-			"<h1>Playdar Log Output</h1>"
-			"<h2>Levels: "  ++ io_lib:format("~p", [Levels]) ++ "</h2>"
-            "<p>This will only update as new lines are logged, so go do something then check this page</p>"
-            "<table>",    
-    Response:write_chunk(First),
-    feed_logger(Response, 0).
+	DefaultLevels = "info,warning,error",
+	LevStr = proplists:get_value("levels", Qs, DefaultLevels),
+	Levels = case LevStr of
+						 "all"  -> all;
+						 Str    ->
+							 [ list_to_atom(S) || S <- string:tokens(Str, ",") ]
+					 end,
+	?LOG(info, "levstr: ~s levels: ~p", [LevStr, Levels]),
+	case Req:get(path) of
+		"/logger" -> 
+			Url = "/logger/feed?levels=" ++ LevStr,
+			Vars = [{iframe_url, Url}, {levels, LevStr}],
+			playdar_web:render(Req, DocRoot ++ "/logger.html", Vars);
+		"/logger/feed" ->
+			Pid = self(),
+			playdar_logger:register_logger(fun(Date, Level, Mod, Line) ->
+												   Pid ! {Date, Level, Mod, Line}
+										   end, Levels, Pid),
+			Response = Req:ok({"text/html; charset=utf-8",
+							   [{"Server","Mochiweb-Test"}],
+							   chunked}),
+			% first bit of html we'll send:
+			First = "<html><head><title>Playdar Iframw logger feed</title></head><body>",    
+			Response:write_chunk(First),
+			feed_logger(Response)
+	end.
 
-feed_logger(Response, N) ->
+feed_logger(Response) ->
     receive
         {Date, Level, Mod, Line} ->
-            Col = case N rem 2 of
-                      1 -> "white";
-                      0 -> "lightgrey"
-                  end,
-            Html = io_lib:format("<tr style=\"background-color: " ++ Col ++ "\"><td nowrap>~w</td><td nowrap>~s</td><td nowrap>~w<br/>~w</td><td>~s</td></tr>",
-                                 [N, Date, Level, Mod, Line]),
+            Html = io_lib:format("<script language=\"javascript\">"
+								 "parent.l(\"~s\",\"~w\",\"~w\",\"~s\");"
+								 "</script>\n",
+                                 [Date, Level, Mod, slashes(Line)]),
             Response:write_chunk(Html),
-            feed_logger(Response, N+1)
+            feed_logger(Response)
     end.
     
+slashes(S) -> S.
 
