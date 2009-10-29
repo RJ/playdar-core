@@ -6,6 +6,7 @@
 <td>Module</td>
 <td>Weight</td>
 <td>Target Time</td>
+<td>Localonly</td>
 </tr>
 {% for r in resolvers %}
 <tr style="background-color: {% cycle white,lightyellow %}">
@@ -13,6 +14,7 @@
 <td>{{ r.mod }} </td>
 <td>{{ r.weight }}</td>
 <td>{{ r.targettime }}</td>
+<td>{{ r.localonly }}</td>
 </tr>
 {% endfor %}
 </table>

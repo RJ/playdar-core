@@ -1,14 +1,14 @@
 %% Uses UDP multicast to resolve against other instances of this code
 %% running elsewhere on the LAN. Streams via HTTP.
-
 -module(lan_resolver).
-
 -include("playdar.hrl").
 -behaviour(gen_server).
 -behaviour(playdar_resolver).
 
 %% API
--export([start_link/0, resolve/2, weight/1, targettime/1, name/1, send_response/5]).
+-export([start_link/0, resolve/2, weight/1, targettime/1, name/1, localonly/1]).
+
+-export([send_response/5]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -25,6 +25,7 @@ resolve(Pid, Qry)       -> gen_server:cast(Pid, {resolve, Qry}).
 weight(_Pid)            -> 95.
 targettime(_Pid)        -> 50.
 name(_Pid)              -> "Lan".
+localonly(_Pid)			-> false.
 
 %% Used as a callback when qry results arrive:
 send_response(Pid, A, Qid, Ip, Port) -> 
@@ -45,7 +46,7 @@ init([]) ->
     % Normal socket, which direct replies are sent to:
     {ok, SockP}= gen_udp:open(Port, [binary, 
                                      {reuseaddr, true}, {ip, {0,0,0,0}}]),
-    resolver:add_resolver(?MODULE, name(self()), weight(self()), targettime(self()), self()),
+    resolver:add_resolver(?MODULE, self()),
     {ok, #state{sock=Sock, 
                 sockp=SockP,
                 seenqids=SQ, 

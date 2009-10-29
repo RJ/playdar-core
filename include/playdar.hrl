@@ -1,9 +1,10 @@
-%TODO should probably have a log server that buffers and writes to a log file..
+% include this in all your playdar related code
 
 % logging macros, eg: ?L(info, "something is: ~s", [S]).
--define(LOG(Log_Level, Log_Format, Log_Args), playdar_logger:do_log(?MODULE, Log_Level, Log_Format, Log_Args)).
+-define(LOG(Level, Format, Args), playdar_logger:do_log(?MODULE, Level, Format, Args)).
 
--define(CONFVAL(ConfVal_K,ConfVal_Def), playdar_config:confval(ConfVal_K,ConfVal_Def)).
+% lookup config value from *.conf files in playdar's etc dir
+-define(CONFVAL(K,Def), playdar_config:confval(K,Def)).
 
 % use by playdar_ctl and ctl commands:
 -define(OK, 0).
@@ -14,6 +15,6 @@
 
 % project-wide struct
 -record(qry,      {qid,      % query id
-                   obj,      % json obj
+                   obj,      % json obj, mochijson2 format
                    local     % true if local user created it, false if via lan etc
                   }).

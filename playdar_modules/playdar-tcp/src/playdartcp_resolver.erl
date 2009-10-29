@@ -7,8 +7,9 @@
 %% playdar_reader exports:
 -export([reader_protocols/0]).
 
--export([start_link/0, resolve/2, weight/1, targettime/1, name/1, 
-		 playdartcp_reader/3, reader_start_link/3]).
+-export([start_link/0, resolve/2, weight/1, targettime/1, name/1, localonly/1]).
+
+-export([playdartcp_reader/3, reader_start_link/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
@@ -22,6 +23,7 @@ resolve(_Pid, Qry)      -> gen_server:cast(playdartcp_router, {resolve, Qry}).
 weight(_Pid)            -> 60.
 targettime(_Pid)        -> 1000.
 name(_Pid)              -> "playdartcp".
+localonly(_Pid) 		-> false.
 
 reader_start_link(A, Pid, Ref) -> spawn_link( ?MODULE, playdartcp_reader, [A, Pid, Ref]). 
 
@@ -36,7 +38,7 @@ init([]) ->
     % Connect to any peers listed in the config file:
     lists:foreach(fun({Ip,Port})->playdartcp_router:connect(Ip,Port)end, ?CONFVAL({playdartcp,peers},[])),
     % Register us as a playdar resolver:
-    resolver:add_resolver(?MODULE, name(self()), weight(self()), targettime(self()), self()),
+    resolver:add_resolver(?MODULE, self()),
     % Register our web request handler (for our localhost web gui)
     http_registry:register_handler("playdartcp", fun playdartcp_web:http_req/2, "playdartcp Connection Status Page", "/playdartcp"),
 	% register our ctl cmd:

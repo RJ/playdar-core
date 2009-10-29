@@ -4,7 +4,7 @@
 -behaviour(playdar_resolver).
 
 %% API
--export([start_link/0, resolve/2, weight/1, targettime/1, name/1]).
+-export([start_link/0, resolve/2, weight/1, targettime/1, name/1, localonly/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -18,10 +18,11 @@ resolve(Pid, Qry)       -> gen_server:cast(Pid, {resolve, Qry}).
 weight(_Pid)            -> 50.
 targettime(_Pid)        -> 25.
 name(_Pid)              -> "Fake Mokele Resolver".
+localonly(_Pid)			-> true.
 
 %% gen_server callbacks
 init([]) ->
-    resolver:add_resolver(?MODULE, name(self()), weight(self()), targettime(self()), self()),
+    resolver:add_resolver(?MODULE, self()),
     {ok, #state{}}.
 
 handle_call(_Request, _From, State) ->

@@ -6,7 +6,7 @@
 -behaviour(playdar_resolver).
 
 %% API
--export([start_link/0, resolve/2, weight/1, targettime/1, name/1]).
+-export([start_link/0, resolve/2, weight/1, targettime/1, name/1, localonly/1]).
 -export([http_req/2]).
 
 %% gen_server callbacks
@@ -20,6 +20,7 @@ resolve(_Pid, _Qry)     -> ok.
 weight(_Pid)            -> 0.
 targettime(_Pid)        -> 0.
 name(_Pid)              -> "audioscrobbler".
+localonly(_Pid)			-> true.
 
 %%%%
 

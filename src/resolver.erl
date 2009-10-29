@@ -1,13 +1,20 @@
+%% This is one of the key processes. It loads up all the resolver modules and
+%% adds them to the resolver pipeline. It is the entry point for dispatching
+%% new queries, which it runs thru the resolver pipeline. Resolvers report 
+%% back any results they find to this process, and it maintains all active
+%% queries and results in ETS tables.
+%%
+%% Queries are uniquely identified by GUIDs called Query IDs, "Qids"
+%% Results to queries also have GUIDs called Source IDs, "Sids"
 -module(resolver).
-
 -behaviour(gen_server).
 -include("playdar.hrl").
 -define(MIN_SCORE, 0.6).
 
 %% API
 -export([start_link/0, dispatch/1, dispatch/2, sid2qid/1, 
-         resolvers/0, register_sid/2, add_resolver/5, resolver_pid/1,
-         queries/0, add_query_timer/2, add_results/2, results/1, result/1,
+         resolvers/0, register_sid/2, add_resolver/2, resolver_pid/1,
+         queries/0, add_results/2, results/1, result/1,
 		 solved/1]).
 
 %% gen_server callbacks
@@ -16,17 +23,19 @@
 
 -record(state,    {queries, sources, resolvers}).
 
--record(rq,      {qry,       % the #qry struct
-                  solved,    % bool - seen a 1.0 result
-                  ctime,     % creation time
-                  callbacks, % list of funs
-                  results,   % list of results
-                  timers     % used during pipeline for dispatching
+% how we internally represent an active query:
+-record(rq,      {qry,        % the #qry struct (see playdar.hrl)
+                  solved,     % bool - seen a 1.0 result
+                  ctime,      % creation time
+                  callbacks,  % list of funs
+                  results,    % list of results
+                  pipelinepid % pid of process running the pipeline
                  }).
 
--record(resolver, {mod, name, weight, targettime, pid}). %TODO localonly, preference
+-record(resolver, {mod, name, weight, targettime, pid, localonly}).
 
 %% API
+
 start_link()        -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 % dispatch a Query, returns the query pid
@@ -35,18 +44,16 @@ dispatch(Qry, Callbacks)-> gen_server:call(?MODULE, {dispatch, Qry, Callbacks}).
 
 % associate a source id with a query id:
 register_sid(Sid, Qid)  -> gen_server:cast(?MODULE, {register_sid, Sid, Qid}).
-% lookup associated qid for a sid
+
 sid2qid(Sid)            -> gen_server:call(?MODULE, {sid2qid, Sid}).
 
 % list all loaded resolvers
 resolvers()             -> gen_server:call(?MODULE, resolvers).
+
 % list all active query ids
 queries()               -> gen_server:call(?MODULE, queries).
 
-% add a timer, which will be cancelled if the query is marked as solved
-add_query_timer(Qid, Tref) -> gen_server:cast(?MODULE, {add_query_timer, Qid, Tref}).
-
-% Helper function, handy for getting pid of library for scanning.
+% get pid of loaded resolver module (mainly for debugging)
 resolver_pid(Mod)  -> 
     case lists:filter(fun(R)->proplists:get_value(mod,R) == Mod end, 
                       resolver:resolvers()) of
@@ -55,19 +62,23 @@ resolver_pid(Mod)  ->
     end.
 
 % resolver modules call this to register themselves, get added to the pipeline:
-add_resolver(Mod, Name, Weight, TargetTime, Pid) ->
-    gen_server:cast(?MODULE,{add_resolver, Mod, Name, Weight, TargetTime, Pid}).
+add_resolver(Mod, Pid) -> gen_server:cast(?MODULE,{add_resolver, Mod, Pid}).
 
+% resolvers call this to report new results:
 add_results(Qid, Result) when is_tuple(Result)  -> add_results(Qid, [Result]);
 add_results(Qid, Results) when is_list(Results) -> gen_server:cast(?MODULE, {add_results, Qid, Results}).
 
+% get all results for this query:
 results(Qid) -> gen_server:call(?MODULE, {results, Qid}).
+
+% get specific result object for this sid:
 result(Sid)  -> gen_server:call(?MODULE, {result, Sid}).
 
+% bool: is qry solved
 solved(Qid) -> gen_server:call(?MODULE, {solved, Qid}).
 
-%% gen_server callbacks
 
+%% gen_server callbacks
 
 
 init([]) ->
@@ -107,7 +118,8 @@ handle_call(resolvers, _From, State) ->
              {name, R#resolver.name},
              {weight, R#resolver.weight},
              {targettime, R#resolver.targettime},
-             {pid, R#resolver.pid}] || R <- State#state.resolvers ],
+             {pid, R#resolver.pid},
+			 {localonly, R#resolver.localonly}] || R <- State#state.resolvers ],
     {reply, Res, State};
 
 handle_call({solved, Qid}, _From, State) ->
@@ -134,11 +146,10 @@ handle_call({dispatch, Qry, Callbacks}, _From, State) ->
 			{reply, Qid, State};
 		_ ->
             % dispatch the qry:
+			P = start_resolver_pipeline(Qry, State#state.resolvers),
             RQ  = #rq{qry=Qry, solved=false, ctime=erlang:localtime(), 
-                      callbacks=Callbacks, timers=[], results=[]},
+                      callbacks=Callbacks, results=[], pipelinepid=P},
             ets:insert(State#state.queries, {Qid, RQ}),
-			% dispatch to resolvers
-			start_resolver_pipeline(Qry, State#state.resolvers),
 			{reply, Qid, State}
 	end;
 
@@ -170,25 +181,24 @@ handle_call({result, Sid}, _From, State) ->
 			end;
 		[] ->
 			{reply, undefined, State}
-	end.
+	end.           
 
-handle_cast({add_query_timer, Qid, Tref}, State) ->
-    case ets:lookup(State#state.queries, Qid) of
-        [{Qid, RQ}] ->
-            % update the RQ with an additional timer reference
-            % we cancel this tref if solved->true, which stops the pipeline.
-            RQ1 = RQ#rq{timers = [Tref | RQ#rq.timers]},
-            ets:insert(State#state.queries, {Qid, RQ1}),
-            {noreply, State};
-        [] ->
-            {noreply, State}
-    end;            
-
-handle_cast({add_resolver,Mod, Name, Weight, TargetTime, Pid}, State) ->
+handle_cast({add_resolver,Mod, Pid}, State) ->
     link(Pid),
-    ?LOG(info, "add_resolver: ~w '~s' Weight:~w TT:~w Pid:~w",
-               [Mod, Name, Weight, TargetTime, Pid]),
-    R = #resolver{mod=Mod, name=Name, weight=Weight, targettime=TargetTime, pid=Pid},
+	Name 		= Mod:name(Pid),
+	Weight 		= Mod:weight(Pid),
+	TargetTime 	= Mod:targettime(Pid),
+	LocalOnly	= Mod:localonly(Pid),
+    ?LOG(info, "add_resolver: ~w '~s' Weight:~w TT:~w Pid:~w Localonly:~w",
+               [Mod, Name, Weight, TargetTime, Pid, LocalOnly]),
+    R = #resolver{
+				  mod=Mod, 
+				  name=Name, 
+				  weight=Weight, 
+				  targettime=TargetTime, 
+				  pid=Pid,
+				  localonly=LocalOnly
+				 },
     % 4 is the pos in the #resolver tuple for "weight":
     Resolvers = lists:reverse(lists:keysort(4, [R|State#state.resolvers])),
     {noreply, State#state{resolvers=Resolvers}};
@@ -200,35 +210,10 @@ handle_cast({register_sid, Sid, Qid}, State) ->
 
 % resolvers call this to report new results:
 handle_cast({add_results, Qid, Results}, State) ->
-	% This fun is to decide if any results solve the query, and will
-	% add missing scores or sids, in one pass using foldl.
-    ResultFun = fun({struct, R}, {Rs, Sol, Sids}) ->
-                    % decide if this solves the qry
-                    {Solved, R1} = case proplists:get_value(<<"score">>, R) of
-                                    undefined ->
-                                        % calculate the score based on strings TODO
-                                        {false, [ {<<"score">>, 0.123} | R ]};
-                                    1.0 ->
-                                        {true, R};
-                                    _ ->
-                                        {false, R}
-                                   end,
-                    % add a sid if one doesnt exist
-                    {R2, Sid} = case proplists:get_value(<<"sid">>, R1) of
-                                    undefined ->
-                                        Uuid = utils:uuid_gen(),
-                                        {[{<<"sid">>, Uuid} | R1], Uuid};
-                                    S ->
-                                        {R1, S}
-                                end,               
-                    {[{struct, R2}|Rs], Sol or Solved, [Sid|Sids]}
-                end,
-    
     case ets:lookup(State#state.queries, Qid) of
         [{Qid, RQ}] ->
             ?LOG(debug, "add_results ~s (~w)",  [Qid, length(Results)]),
-            % TODO ignore stuff below MIN_SCORE ?
-            {Results1, Solved, Sids} = lists:foldl(ResultFun, {[], false, []}, Results),
+            {Results1, Solved, Sids} = tidy_results(Results),
 			% remove results below min_score
 			Results2 = lists:filter(fun({struct, E}) -> 
 											proplists:get_value(<<"score">>, E, 0) >= ?MIN_SCORE
@@ -236,6 +221,13 @@ handle_cast({add_results, Qid, Results}, State) ->
             % add new results, and update the "solved" field if appropriate
             RQ1 = RQ#rq{results = Results2 ++ RQ#rq.results,
                         solved = RQ#rq.solved or Solved},
+			% Did we just change the solved status to true? (will never go true->false)
+			case RQ#rq.solved /= RQ1#rq.solved of
+				true -> 
+					% don't bother asking any other resolvers about this qry
+					erlang:exit(RQ#rq.pipelinepid, solved);						
+				false -> noop
+			end,					
             ets:insert(State#state.queries, {Qid, RQ1}),
             % register the new SIDs
             ets:insert(State#state.sources, [ {Sid, Qid} || Sid <- Sids]),
@@ -266,41 +258,92 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
+
 %%% Internal functions
 
-% TODO make this process persist for the duration of the pipeline, instead of
-% using timer callbacks. Then register/kill this pid when solved=true instead
-% of cancelling a bunch of timers. Seems like it would be more elegant.
+
+% The pipeline passes the qry to all resolvers in sequence, with appropriate
+% delays based on resolver configuration. This process is killed by the 
+% main resolver if the query is solved.
 start_resolver_pipeline(Qry, Resolvers) when is_record(Qry, qry) ->
-    spawn(fun()->
-                  start_resolver_pipeline(Qry, Resolvers, {-1, -1})
-          end).
+    spawn(fun()->run_pipeline(Qry, Resolvers, {-1, -1})end).
 
-start_resolver_pipeline(_, [], _) -> ok;
+run_pipeline(_, [], _) -> ok;
 
-start_resolver_pipeline(Qry, [H|Resolvers], {LastWeight, LastTime}) when is_record(Qry, qry) ->
-    case LastWeight of
-        -1 -> % first iteration
-            (H#resolver.mod):resolve(H#resolver.pid, Qry),
-            start_resolver_pipeline(Qry, Resolvers, {H#resolver.weight, H#resolver.targettime});
-        _  -> 
-            if
-                LastWeight == H#resolver.weight ->
-                    % same weight, dispatch immediately
-                    (H#resolver.mod):resolve(H#resolver.pid, Qry),
-                    start_resolver_pipeline(Qry, Resolvers, {LastWeight, utils:min(H#resolver.targettime, LastTime)});
-                true ->
-                    % dispatch after delay, save timer ref for possible cancellation if solved
-                    {ok, Tref} = timer:apply_after(LastTime, H#resolver.mod, resolve, [H#resolver.pid, Qry]),
-                    add_query_timer(Qry#qry.qid, Tref),
-                    start_resolver_pipeline(Qry, Resolvers, {H#resolver.weight, H#resolver.targettime})
-            end
-    end.
+% skip any resolvers that specify localonly=true if this is a non-local query:
+run_pipeline(Qry = #qry{local=Qlocal}, [H|Resolvers], {LastWeight, LastTime}) 
+when is_record(Qry, qry), H#resolver.localonly == true, Qlocal == false -> 
+	?LOG(pipeline, "Skipping resolver ~w (localonly)", [H#resolver.mod]),
+	run_pipeline(Qry, Resolvers, {LastWeight, LastTime});
 
+% first run, lastweight=-1 ... dispatch to the first resolver.
+run_pipeline(Qry, [H|Resolvers], {-1, _LastTime}) 
+when is_record(Qry, qry) ->
+	?LOG(pipeline, "Dispatching to ~s", [H#resolver.name]),
+	(H#resolver.mod):resolve(H#resolver.pid, Qry),
+    run_pipeline(Qry, Resolvers, {H#resolver.weight, H#resolver.targettime});
+
+run_pipeline(Qry, [H|Resolvers], {LastWeight, LastTime}) 
+when is_record(Qry, qry) ->
+	case LastWeight == H#resolver.weight of
+		true ->
+			% same weight, dispatch immediately
+			?LOG(pipeline, "Dispatching to ~s", [H#resolver.name]),
+			(H#resolver.mod):resolve(H#resolver.pid, Qry),
+			Time = utils:min(H#resolver.targettime, LastTime),
+			run_pipeline(Qry, Resolvers, {LastWeight, Time});
+		false ->
+			timer:sleep(LastTime),
+			?LOG(pipeline, "Dispatching to ~s", [H#resolver.name]),
+			(H#resolver.mod):resolve(H#resolver.pid, Qry),
+			run_pipeline(Qry, Resolvers, {H#resolver.weight, H#resolver.targettime})
+	end.
+
+
+
+% results are sorted primarily by score, if scores are equal, by preference.
 sort_results([]) -> [];
 sort_results(Results) when is_list(Results) ->
 	lists:sort(fun results_sorter/2, Results).
 
-results_sorter({struct, A}, {struct, B}) -> % TODO secondary sort by pref, etc
-	proplists:get_value(<<"score">>, A, 0) > proplists:get_value(<<"score">>, B, 0).
-	
+results_sorter({struct, A}, {struct, B}) ->
+	Ascore = proplists:get_value(<<"score">>, A, 0),
+	Bscore = proplists:get_value(<<"score">>, B, 0),
+	case Ascore == Bscore of
+		false ->
+			Ascore > Bscore;
+		true ->
+			Apref = proplists:get_value(<<"preference">>, A, 0),
+			Bpref = proplists:get_value(<<"preference">>, B, 0),
+			Apref > Bpref
+	end.
+
+
+% given list of results from a resolver, it returns a 3-tuple:
+% {Results1, Solved, Sids}
+% Results1: new list of results, with added sids / sanitized
+% Solved: did any of these results solve the query? (ie, 1.0 score)
+% Sids: list of all sids from Results
+tidy_results(Results) ->
+	F = fun({struct, R}, {Rs, Sol, Sids}) ->
+				% decide if this solves the qry
+				{Solved, R1} = case proplists:get_value(<<"score">>, R) of
+								   undefined ->
+									   % calculate the score based on strings TODO
+									   {false, [ {<<"score">>, 0.123} | R ]};
+								   1.0 ->
+									   {true, R};
+								   _ ->
+									   {false, R}
+							   end,
+				% add a sid if one doesnt exist
+				{R2, Sid} = case proplists:get_value(<<"sid">>, R1) of
+								undefined ->
+									Uuid = utils:uuid_gen(),
+									{[{<<"sid">>, Uuid} | R1], Uuid};
+								S ->
+									{R1, S}
+							end,               
+				{[{struct, R2}|Rs], Sol or Solved, [Sid|Sids]}
+		end,
+	lists:foldl(F, {[], false, []}, Results).

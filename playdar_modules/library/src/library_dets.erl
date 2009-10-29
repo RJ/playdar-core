@@ -5,7 +5,8 @@
 -behaviour(playdar_resolver).
 
 %% API
--export([start_link/0, resolve/2, weight/1, targettime/1, name/1, dump_library/1]).
+-export([start_link/0, resolve/2, weight/1, targettime/1, name/1, localonly/1]).
+-export([dump_library/1]).
 -export([scan/2, stats/1, add_file/5, sync/1 ]).
 
 %% gen_server callbacks
@@ -26,6 +27,7 @@ resolve(Pid, Qry)       -> gen_server:cast(Pid, {resolve, Qry}).
 weight(_Pid)            -> 100.
 targettime(_Pid)        -> 20.
 name(_Pid)              -> "Local Library using DETS".
+localonly(_Pid)			-> false.
 
 stats(Pid)              -> gen_server:call(Pid, stats).
 
@@ -50,7 +52,7 @@ init([]) ->
                [proplists:get_value(size, dets:info(Fdb), -1)]),
     % start the scanner (kind of a hack, but deadlock if we do it in init here):
     self() ! start_scanner,        
-    resolver:add_resolver(?MODULE, name(self()), weight(self()), targettime(self()), self()),
+    resolver:add_resolver(?MODULE, self()),
     {ok, #state{scanner=undefined, ndb=Ndb, fdb=Fdb, customname=""}}.
 
 handle_cast(sync, State) -> 

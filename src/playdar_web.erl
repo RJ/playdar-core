@@ -49,7 +49,15 @@ loop1(Req, DocRoot) ->
             Resolvers = [ [{"mod", atom_to_list(proplists:get_value(mod, Pl))}|proplists:delete(mod,Pl)]
                                || Pl <- resolver:resolvers() ],
             HttpMenus = http_registry:get_all(),
-            Vars = [ {resolvers, Resolvers}, 
+			% change bools to strings, for rendering (yuk, TODO hack erlydtl)
+			Resolvers1 = [  begin
+							    LOS = case proplists:get_value(localonly, Resolver, false) of
+										 true -> "yes";
+										 false -> "no"
+								 	 end,
+								[ {localonly, LOS} | proplists:delete(localonly, Resolver) ]
+							end || Resolver <- Resolvers ],
+            Vars = [ {resolvers, Resolvers1}, 
                      {protocols, playdar_reader_registry:get_all()},
                      {http_paths, HttpMenus}
                    ],
