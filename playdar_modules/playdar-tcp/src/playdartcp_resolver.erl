@@ -35,8 +35,11 @@ reader_protocols() ->
 
 init([]) ->
     {ok,_} = playdartcp_router:start_link(?CONFVAL({playdartcp,port},60211)),
-    % Connect to any peers listed in the config file:
-    lists:foreach(fun({Ip,Port})->playdartcp_router:connect(Ip,Port)end, ?CONFVAL({playdartcp,peers},[])),
+    % Connect to any peers listed in the config file
+	% the connect call will timeout+crash if connection fails
+    lists:foreach(fun({Ip,Port})->
+						  (catch playdartcp_router:connect(Ip,Port))
+				  end, ?CONFVAL({playdartcp,peers},[])),
     % Register us as a playdar resolver
     playdar_resolver:add_resolver(?MODULE, self()),
     % Register our web request handler (for our localhost web gui)
