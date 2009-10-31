@@ -38,7 +38,7 @@ init([]) ->
     % Connect to any peers listed in the config file
 	% the connect call will timeout+crash if connection fails
     lists:foreach(fun({Ip,Port})->
-						  (catch playdartcp_router:connect(Ip,Port))
+						  spawn(fun()->playdartcp_router:connect(Ip,Port)end)
 				  end, ?CONFVAL({playdartcp,peers},[])),
     % Register us as a playdar resolver
     playdar_resolver:add_resolver(?MODULE, self()),
