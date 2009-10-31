@@ -6,7 +6,7 @@
     <link rel="stylesheet" href="/static/playdar.css" type="text/css">
 </head>
 <body id="{% block bodyid %}playdar{% endblock %}">
-    <a href="http://www.playdar.org/" title="Playdar - Music Content Resolver" id="head">
+    <a href="/" title="Playdar - Music Content Resolver" id="head">
         <img alt="Playdar - the Music Content Resolver" src="/static/playdar_auth_logo.gif" width="233" height="68"/>
     </a>
     
