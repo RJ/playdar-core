@@ -1,4 +1,5 @@
-{% include "../header.inc.html" %}
+{% extends "../base.tpl" %}
+{% block content %}
 <h3>Peers</h3>
 <table style="width:100%">
 <tr style="font-weight:bold">
@@ -23,6 +24,4 @@
 </tr>
 {% endfor %}
 </table>
-
-</body>
-</html>
+{% endblock %}

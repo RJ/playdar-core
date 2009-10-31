@@ -1,4 +1,5 @@
-{% include "header.inc.html" %}
+{% extends "base.tpl" %}
+{% block content %}
 <h2>Log Output, levels: {{ levels }}</h2>
 <p>This will only update as new lines are logged, so go do something then check this page
 <br/>
@@ -46,5 +47,4 @@ function l(date, level, mod, msg)
 }
 </script>
 <iframe style="display:none;" src="{{ iframe_url }}"></iframe>
-</body>
-</html>
+{% endblock %}

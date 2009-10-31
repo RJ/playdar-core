@@ -1,4 +1,5 @@
-{% include "header.inc.html" %}
+{% extends "base.tpl" %}
+{% block content %}
 <h2>Query {{ qid }}</h2>
 <pre>
 {{ qry }}
@@ -19,6 +20,4 @@
 </tr>
 {% endfor %}
 </table>
-
-</body>
-</html>
+{% endblock %}

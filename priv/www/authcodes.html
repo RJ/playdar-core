@@ -1,9 +1,8 @@
-{% include "header.inc.html" %}
+{% extends "base.tpl" %}
+{% block content %}
 <h2>List of Authenticated Clients</h2>
 
 {% for c in codes %}
 <a onclick="return confirm('Revoke this auth code?');" href="/authcodes?revoke={{c.code}}">{{c.code}}</a> / {{c.name|force_escape}} / {{c.website|force_escape}} <br/>
 {% endfor %}
-
-</body>
-</html>
+{% endblock %}
