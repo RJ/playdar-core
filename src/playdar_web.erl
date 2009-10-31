@@ -119,14 +119,13 @@ loop1(Req, DocRoot) ->
                 AllPresent and FormTokOk ->
                     % create the entry in the auth db:
                     AuthCode = playdar_utils:uuid_gen(),
-                    % m_pauth->create_new(tok, req.postvar("website"), req.postvar("name"), req.useragent() );
                     playdar_auth:create(AuthCode, [ {website, proplists:get_value("website",Qs, "")},
                                             {name, proplists:get_value("name",Qs, "")}
                                           ]),
                     case proplists:get_value("receiverurl",Qs, "") of
                         "" ->
                             case proplists:get_value("json", Qs, "") of 
-                                undefined ->
+                                "" ->
                                     Vars = [    {website,proplists:get_value("website",Qs, "")},
                                                 {name,proplists:get_value("name",Qs, "")},
                                                 {authcode, AuthCode}
