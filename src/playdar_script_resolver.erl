@@ -29,6 +29,7 @@ init([Exe]) ->
 
 handle_call(weight, _From, State) -> {reply, State#state.weight, State};
 handle_call(targettime, _From, State) -> {reply, State#state.tt, State};
+handle_call(localonly, _From, State) -> {reply, State#state.localonly, State};
 handle_call(name, _From, State) -> {reply, State#state.name, State}.
 
 handle_cast({resolve, #qry{obj={struct, Parts}, qid=Qid}}, #state{port=Port} = State) ->
@@ -53,7 +54,7 @@ handle_info({Port, {data, Data}}, #state{port=Port} = State) ->
             Weight  = proplists:get_value(<<"weight">>, L, State#state.weight),
             TT      = proplists:get_value(<<"targettime">>, L, State#state.tt),
 			Local   = proplists:get_value(<<"localonly">>, L, State#state.localonly),
-            playdar_resolver:add_resolver(?MODULE, Name, Weight, TT, self()),
+            playdar_resolver:add_resolver(?MODULE, self()),
             {noreply, State#state{	name=Name, 
 									weight=Weight, 
 									tt=TT, 
