@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 -export([start_link/0, do_log/4, register_logger/3]).
--export([http_req/2]).
+-export([http_req/2,  slashes/1]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
@@ -104,7 +104,8 @@ http_req(Req, DocRoot) ->
 
 feed_logger(Response) ->
     receive
-        {Date, Level, Mod, Line} ->
+        {Date, Level, Mod, Line0} ->
+			Line = lists:flatten(Line0),
             Html = io_lib:format("<script language=\"javascript\">"
 								 "parent.log(\"~s\",\"~w\",\"~w\",\"~s\");"
 								 "</script>\n",
@@ -113,5 +114,6 @@ feed_logger(Response) ->
             feed_logger(Response)
     end.
     
-slashes(S) -> erlydtl_filters:escapejs(erlydtl_filters:escapejs(S)).
+slashes(S) ->
+	erlydtl_filters:escapejs(S).
 
