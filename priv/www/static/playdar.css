@@ -23,6 +23,15 @@ div#content p {
     margin: 0 0 25px 0;
 }
 
+div#content h1,
+div#content h2,
+div#content h3,
+div#content h4,
+div#content h5,
+div#content h6 {
+    font-family: "Helvetica", "Arial", sans-serif;
+}
+
 
 body#auth div#content {
     text-align: center;
@@ -37,4 +46,47 @@ body#auth input.confirm {
     background: #81bd0e;
     color: #fff;
     border-color: #6ba318 #426c0b #426c0b #6ba318;
+}
+
+body#logger table#log {
+    width: 100%;
+    font: normal 13px "Consolas", "Andale Mono", "Courier", monospace;
+}
+body#logger table#log td {
+    padding: 2px;
+}
+body#logger table#log thead {
+    font-weight: bold;
+    background: #f5f5f5;
+}
+body#logger table#log thead td {
+    border-bottom: 1px solid #ddd;
+}
+body#logger table#log td {
+    border-right: 1px solid #ddd;
+    vertical-align: top;
+}
+body#logger table#log tbody tr.even td {
+    background: #eee;
+}
+body#logger table#log tbody tr.highlight td {
+    background: #e8f9bb;
+}
+body#logger table#log tbody tr.highlight.even td {
+    background: #d2f380;
+}
+body#logger table#log td.line {
+    width: 2em;
+}
+body#logger table#log td.date {
+    width: 12em;
+}
+body#logger table#log td.module {
+    width: 8em;
+}
+body#logger table#log td.level {
+    width: 5em;
+}
+body#logger table#log td.message {
+    border-right: 0;
 }

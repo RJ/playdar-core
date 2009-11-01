@@ -1,48 +1,52 @@
 {% extends "base.tpl" %}
+{% block bodyid %}logger{% endblock %}
 {% block content %}
 <h2>Log Output, levels: {{ levels }}</h2>
 <p>This will only update as new lines are logged, so go do something then check this page
 <br/>
 If you leave this page open for too long, your browser may crash. Browsers suck.</p>
-<table id="tbl" style="width:100%;">
-<tr style="font-weight:bold; background-color:#f0f0f0">
-<td>#</td>
-<td>Date</td>
-<td>Mod</td>
-<td>Level</td>
-<td>Message</td>
-</tr>
+<table id="log" cellspacing="0" cellpadding="0" border="0">
+    <thead>
+        <tr>
+            <td class="line">#</td>
+            <td class="date">Date</td>
+            <td class="module">Module</td>
+            <td class="level">Level</td>
+            <td class="message">Message</td>
+        </tr>
+    </thead>
+    <tbody id="logBody"></tbody>
 </table>
 <script language="javascript">
-var gi = 1;
-var tbl = document.getElementById('tbl');
-var MAX_ROWS = 10;
+var line = 1;
+var MAX_ROWS = 100;
 
-function l(date, level, mod, msg)
-{
-    var tr  = document.createElement('tr');
-    tr.id = 'tr'+gi;
-    if(gi%2) tr.style.backgroundColor = '#f0f0f0';
-    var td1 = document.createElement('td');
-    td1.appendChild(document.createTextNode(gi++));
-    tr.appendChild(td1);
-    var td2 = document.createElement('td');
-    td2.appendChild(document.createTextNode(date));
-    tr.appendChild(td2);
-    var td3 = document.createElement('td');
-    td3.appendChild(document.createTextNode(mod));
-    tr.appendChild(td3);
-    var td4 = document.createElement('td');
-    td4.appendChild(document.createTextNode(level));
-    tr.appendChild(td4);
-    var td5 = document.createElement('td');
-    td5.appendChild(document.createTextNode(msg));
-    tr.appendChild(td5);
-    tbl.insertBefore(tr, tbl.firstChild);
-    if(gi == MAX_ROWS)
-    {
-        var lasttr = document.getElementById('tr'+(gi-MAX_ROWS));
-        if(lasttr) tbl.removeChild(lasttr);
+function log (date, level, module, msg) {
+    // Create a row
+    var moduleHighlight = "{{ highlight_module|escapejs }}";
+    var row  = document.createElement('tr');
+    row.id = 'row_' + line;
+    // Candystripe
+    if (line % 2) {
+        row.className = 'even';
+    }
+    if (module == moduleHighlight) {
+        row.className += ' highlight';
+    }
+    line++;
+    var logBody = document.getElementById('logBody');
+    logBody.insertBefore(row, logBody.firstChild);
+    var html = '<td class="line">' + line + '</td>'
+                 + '<td class="date">' + date + '</td>'
+                 + '<td class="module">' + module + '</td>'
+                 + '<td class="level">' + level + '</td>'
+                 + '<td class="message">' + msg + '</td>';
+    row.innerHTML = html;
+    if (false && line > MAX_ROWS) {
+        var lastRow = document.getElementById('row_' + (line-MAX_ROWS));
+        if (lastRow) {
+            logBody.removeChild(lastRow);
+        }
     }
 }
 </script>

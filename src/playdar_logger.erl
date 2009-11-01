@@ -77,6 +77,7 @@ http_req(Req, DocRoot) ->
 	Qs = Req:parse_qs(),
 	DefaultLevels = "info,warning,error",
 	LevStr = proplists:get_value("levels", Qs, DefaultLevels),
+	HighlightModule = proplists:get_value("module", Qs, ""),
 	Levels = case LevStr of
 						 "all"  -> all;
 						 Str    ->
@@ -85,7 +86,7 @@ http_req(Req, DocRoot) ->
 	case Req:get(path) of
 		"/logger" -> 
 			Url = "/logger/feed?levels=" ++ LevStr,
-			Vars = [{iframe_url, Url}, {levels, LevStr}],
+			Vars = [{iframe_url, Url}, {levels, LevStr}, {highlight_module, HighlightModule}],
 			playdar_web:render(Req, DocRoot ++ "/logger.html", Vars);
 		"/logger/feed" ->
 			Pid = self(),
@@ -96,7 +97,7 @@ http_req(Req, DocRoot) ->
 							   [{"Server","Mochiweb-Test"}],
 							   chunked}),
 			% first bit of html we'll send:
-			First = "<html><head><title>Playdar Iframw logger feed</title></head><body>",    
+			First = "<html><head><title>Playdar Iframe logger feed</title></head><body>",    
 			Response:write_chunk(First),
 			feed_logger(Response)
 	end.
@@ -105,12 +106,12 @@ feed_logger(Response) ->
     receive
         {Date, Level, Mod, Line} ->
             Html = io_lib:format("<script language=\"javascript\">"
-								 "parent.l(\"~s\",\"~w\",\"~w\",\"~s\");"
+								 "parent.log(\"~s\",\"~w\",\"~w\",\"~s\");"
 								 "</script>\n",
                                  [Date, Level, Mod, slashes(Line)]),
             Response:write_chunk(Html),
             feed_logger(Response)
     end.
     
-slashes(S) -> S.
+slashes(S) -> erlydtl_filters:escapejs(erlydtl_filters:escapejs(S)).
 
