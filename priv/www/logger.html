@@ -33,10 +33,9 @@ function log (date, level, module, msg) {
     if (module == moduleHighlight) {
         row.className += ' highlight';
     }
-    line++;
     var logBody = document.getElementById('logBody');
     logBody.insertBefore(row, logBody.firstChild);
-    var html = '<td class="line">' + line + '</td>'
+    var html = '<td class="line">' + (line++) + '</td>'
                  + '<td class="date">' + date + '</td>'
                  + '<td class="module">' + module + '</td>'
                  + '<td class="level">' + level + '</td>'
