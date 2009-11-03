@@ -69,7 +69,7 @@ handle_cast({resolve, #qry{obj = Q, qid = Qid}}, State) ->
             ?LOG(info, "LAN dispatching query ~s", [Qid]),
 			ets:insert(State#state.seenqids, {Qid,true}),
 			Msg = {struct, [ {<<"_msgtype">>, <<"rq">>},{<<"qid">>,Qid} | Parts ]},
-			gen_udp:send(State#state.sock, State#state.broadcast, State#state.port, mochijson2:encode(Msg)),
+			gen_udp:send(State#state.sockp, State#state.broadcast, State#state.port, mochijson2:encode(Msg)),
 			{noreply, State}
 	end;
  
@@ -88,7 +88,7 @@ handle_cast({send_response, A, Qid, Ip, Port}, State) ->
                                      proplists:delete(<<"port">>, Parts)))
                          ]}}
                     ]},
-    gen_udp:send(State#state.sock, Ip, Port, mochijson2:encode(Msg)),
+    gen_udp:send(State#state.sockp, Ip, Port, mochijson2:encode(Msg)),
     {noreply, State}.
 
 % msg on the broadcast socket = a new incoming query
@@ -149,6 +149,7 @@ handle_info({udp, Sock, {A,B,C,D}=Ip, _InPortNo, Packet}, State = #state{sockp=S
 
 terminate(_Reason, State) ->
     gen_udp:close(State#state.sock),
+    gen_udp:close(State#state.sockp),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
