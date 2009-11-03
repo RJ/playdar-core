@@ -1,6 +1,6 @@
 -module(playdar_utils).
 -include("playdar.hrl").
--export([uuid_gen/0, min/2, max/2, levenshtein/2, list_agg/1, calc_score/2 ]).
+-export([uuid_gen/0, levenshtein/2, list_agg/1, calc_score/2 ]).
 -import(random).
 
 %% UUID Generation: http://github.com/travis/erlang-uuid/blob/master/uuid.erl
@@ -25,10 +25,10 @@ calc_score({ArtClean, Art}, {TrkClean, Trk}) ->
     ArtDist = levenshtein(Art, ArtClean),
     TrkDist = levenshtein(Trk, TrkClean),
     % calc 0-1 scores for artist and track match:
-    MaxArt = max(0.001, length(ArtClean)),
-    MaxTrk = max(0.001, length(TrkClean)),
-    ArtScore0 = max(0, length(ArtClean) - ArtDist) / MaxArt,
-    TrkScore0 = max(0, length(TrkClean) - TrkDist) / MaxTrk,
+    MaxArt = erlang:max(0.001, length(ArtClean)),
+    MaxTrk = erlang:max(0.001, length(TrkClean)),
+    ArtScore0 = erlang:max(0, length(ArtClean) - ArtDist) / MaxArt,
+    TrkScore0 = erlang:max(0, length(TrkClean) - TrkDist) / MaxTrk,
     % exagerate lower scores
     ArtScore = 1-math:cos(ArtScore0*math:pi()/2),
     TrkScore = 1-math:cos(TrkScore0*math:pi()/2),
@@ -43,22 +43,6 @@ calc_score({ArtClean, Art}, {TrkClean, Trk}) ->
         false   -> ok
     end,
     Score.
-
-
-
-
-% min/max. these must be in the stdlib somewhere, couldn't bloody find them.
-min(A,B) ->
-    if 
-        A < B -> A;
-        true -> B
-    end.
-
-max(A,B) ->
-    if 
-        A < B -> B;
-        true -> A
-    end.
 
 % list_agg([a,a,a,b,b,c]) -> [{a,3}, {b,2}, {c,1}]
 list_agg([])        -> [];

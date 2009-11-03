@@ -15,7 +15,7 @@
 -export([start_link/0, dispatch/1, dispatch/2, sid2qid/1, 
          resolvers/0, register_sid/2, add_resolver/2, resolver_pid/1,
          queries/0, add_results/2, results/1, result/1,
-		 solved/1]).
+		 solved/1, gc/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -77,6 +77,7 @@ result(Sid)  -> gen_server:call(?MODULE, {result, Sid}).
 % bool: is qry solved
 solved(Qid) -> gen_server:call(?MODULE, {solved, Qid}).
 
+gc(Age) -> gen_server:cast(?MODULE, {gc, Age}).
 
 %% gen_server callbacks
 
@@ -182,6 +183,34 @@ handle_call({result, Sid}, _From, State) ->
 		[] ->
 			{reply, undefined, State}
 	end.           
+
+handle_cast({gc, Age}, State) ->
+	Now = calendar:datetime_to_gregorian_seconds(erlang:localtime()),
+	F = fun({_Qid, El}, Acc) ->
+				Date = calendar:datetime_to_gregorian_seconds(El#rq.ctime),
+				Expired = Date+Age =< Now,
+				case Expired of
+					true ->
+						[El|Acc];
+					false ->
+						Acc
+				end
+		end,
+	RQs = ets:foldl(F, [], State#state.queries),
+	?LOG(info, "Deleting ~w expired queries", [length(RQs)]),
+	% TODO modules can register to get this list, pre-deletion.
+	lists:foreach(
+	  fun(RQ) ->
+		Qid = (RQ#rq.qry)#qry.qid,
+		lists:foreach(fun({struct, E}) -> 
+						Sid = proplists:get_value(<<"sid">>, E),
+						?LOG(info, "Removing sid->qid: {~s,~s}", [Sid, Qid]),
+						ets:delete(State#state.sources, Sid)
+				  	  end, RQ#rq.results ),
+		?LOG(info, "Removing qid: ~s", [Qid]),
+		ets:delete(State#state.queries, Qid)
+	  end, RQs),	
+	{noreply, State};
 
 handle_cast({add_resolver,Mod, Pid}, State) ->
     link(Pid),
@@ -290,7 +319,7 @@ when is_record(Qry, qry) ->
 			% same weight, dispatch immediately
 			?LOG(pipeline, "Dispatching to ~s", [H#resolver.name]),
 			(H#resolver.mod):resolve(H#resolver.pid, Qry),
-			Time = playdar_utils:min(H#resolver.targettime, LastTime),
+			Time = erlang:min(H#resolver.targettime, LastTime),
 			run_pipeline(Qry, Resolvers, {LastWeight, Time});
 		false ->
 			timer:sleep(LastTime),
