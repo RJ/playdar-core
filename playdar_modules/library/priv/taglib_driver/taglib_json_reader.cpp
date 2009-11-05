@@ -46,15 +46,12 @@ string urlify(const string& p)
     // turn it into a url by prepending file://
     // because we pass all urls to curl:
     string urlpath("file://");
-    if (p.at(0)=='/') // posix path starting with /
-    {
-        urlpath += p;
-    }
-    else if (p.at(1)==':') // windows style filepath
+	if (p.at(0)=='/' || p.at(1)==':') // posix path starting with / or windows style filepath
     {
         urlpath += p;
     }
     else urlpath = p;
+
     return urlpath;
 }
 
@@ -131,7 +128,7 @@ string scan_file(const char* path)
         trim(album);
         trim(track);
         if (artist.length()==0 || track.length()==0) {
-            return "{\"error\" : \"no tags\"}\n";
+            return "{\"error\" : \"no tags\"}";
         }
         string pathstr(path);
         string ext = pathstr.substr(pathstr.length()-4);
@@ -150,11 +147,10 @@ string scan_file(const char* path)
                     "   \"duration\" : " << duration << ","
                     "   \"bitrate\" : " << bitrate << ","
                     "   \"trackno\" : " << tag->track()
-
-                <<  "}\n";
+                <<  "}";
         return os.str();
     }
-    return "{\"error\" : \"no tags\"}\n";
+    return "{\"error\" : \"no tags\"}";
 }
 
 #ifdef WIN32
@@ -176,13 +172,8 @@ int main(int argc, char* argv[])
         buffer[len]='\0';
 
         string j = scan_file((const char*)&buffer);
-
-// newlines 
-#ifdef WIN32 
-        unsigned int l = htonl(j.length()+1);
-#else
         unsigned int l = htonl(j.length());
-#endif
+
         fwrite(&l,4,1,stdout);
         printf("%s", j.c_str());
         fflush(stdout);
