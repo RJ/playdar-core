@@ -1,0 +1,20 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual C++ Express 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "scanner_visual_studio_sln", "scanner_visual_studio_sln\scanner_visual_studio_sln.vcproj", "{DC497693-C34F-4CC2-A3CB-9D6BF5BC136D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DC497693-C34F-4CC2-A3CB-9D6BF5BC136D}.Debug|Win32.ActiveCfg = Debug|Win32
+		{DC497693-C34F-4CC2-A3CB-9D6BF5BC136D}.Debug|Win32.Build.0 = Debug|Win32
+		{DC497693-C34F-4CC2-A3CB-9D6BF5BC136D}.Release|Win32.ActiveCfg = Release|Win32
+		{DC497693-C34F-4CC2-A3CB-9D6BF5BC136D}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

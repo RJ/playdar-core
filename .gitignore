@@ -11,3 +11,6 @@ ebin
 *.conf
 playdar_modules/library/priv/taglib_driver/taglib_json_reader
 erl_crash.dump
+*.ncb
+*.suo
+*.vcproj.*.user
