@@ -19,7 +19,7 @@
 %% API
 start_link(LibPid)  -> gen_server:start_link(?MODULE, [LibPid], []).
 scan_dir(Pid, Dir)  -> gen_server:call(Pid, {scan_dir, Dir},  infinity).
-scan_file(Pid, F)   -> gen_server:call(Pid, {scan_file, F}, 30000).
+scan_file(Pid, F)   -> gen_server:call(Pid, {scan_file, F}, 10000).
 
 %% gen_server callbacks
 init([LibPid]) ->
@@ -46,6 +46,7 @@ handle_call({scan_file, File}, _From, State) ->
                     {reply, ok, State1};
 				{error, scanner_crashed} -> {reply, {error, scanner_crashed}, State#state{port=undefined}};
 				{error, scanner_bug}     -> {reply, {error, scanner_bug}, State#state{port=undefined}};
+				{error, timeout}         -> {reply, {error, no_tags}, State#state{port=undefined}};
                 {error, R} ->
                     {reply, {error, R}, State1}
             end;
@@ -73,7 +74,9 @@ handle_info({'EXIT', Port, Reason}, State) when is_port(Port) ->
     ?LOG(error, "Scanner terminated: ~p",[Reason]),
     {noreply, State#state{port=undefined}};
 
-handle_info(_Msg, State) -> {noreply, State}.
+handle_info(Msg, State) -> 
+	?LOG(info,"UNHANDLED MSG: ~p", [Msg]),
+	{noreply, State}.
 
 terminate(_Reason, #state{port = Port} = _State) when is_port(Port) -> 
 	(catch port_close(Port)), ok;
@@ -86,7 +89,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 scan([], _Pid)     -> ok;
 scan([H|T], Pid)   ->
-    %?LOG(info, "Scan(~s)", [H]),
+    ?LOG(info, "Scan(~s)", [H]),
     case filelib:is_dir(H) of
         true  ->    scan(filelib:wildcard(H ++ "/*"), Pid);
         false ->    
@@ -105,7 +108,7 @@ taglib_drv_ensure_started(State) ->
     Grace = 5000, % give time for a small scan to finish before timeout counter applies
     {ok, TRef} = timer:send_after(?IDLE_TIMEOUT + Grace, State#state.self, port_idle),
     Exe = ?CONFVAL({library, taglib_driver}, State#state.exe),
-    Port = open_port({spawn, Exe}, [binary, {packet, 4}, use_stdio]),
+    Port = open_port({spawn, Exe}, [binary, {packet, 4}, use_stdio, exit_status]),
     State#state{port = Port, tref=TRef }.
 
 readtags(File, Port) ->
@@ -123,12 +126,16 @@ readtags(File, Port) ->
                     ?LOG(warning, "Scanner returned invalid JSON!",[]),
                     {error, scanner_bug}
             end;
-        
+			
+        {Port,{exit_status,Code}} ->
+			?LOG(error, "SCANNER exited, code ~p", [Code]),
+			{error, scanner_crashed};
+		
         {'EXIT', Port, Reason} ->
             ?LOG(error, "SCANNER CRASHED!!!! ~p", [Reason]),
             {error, scanner_crashed}
     
-    after 60000 ->
+    after 9000 ->
             ?LOG(error, "Scanner timedout reading: ~s", [File]),
             (catch port_close(Port)),
             {error, timeout}
