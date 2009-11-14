@@ -39,11 +39,16 @@ handle_cast({resolve, #qry{obj = Q, qid = Qid}}, State) ->
                                 {<<"artist">>, <<"Mokele">>},
                                 {<<"track">>,  <<"Hiding in your Insides!">>},
                                 {<<"album">>,  <<"">>},
-                                {<<"score">>, 0.2},
+                                {<<"score">>, 0.987},
+                                {<<"duration">>, 248},
+                                {<<"mimetype">>, <<"audio/mpeg">>},
+                                {<<"size">>, 4971780},
+                                {<<"bitrate">>, 160},
 								{<<"url">>, <<"http://www.playdar.org/hiding.mp3">>}
                             ]},
 					playdar_resolver:add_results(Qid, Rep);
-                _ -> noop
+                X -> 
+                     noop
             end;
         _ -> noop
     end,
