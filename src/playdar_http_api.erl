@@ -111,11 +111,54 @@ http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
                         ]},
                     respond(Req, R)
              end;
+		
+		% /api/?method=get_results_long&timeout=4000
+		% will return results found in those 4 secs, and return immediately on solved
+		% /api/?method=get_results_long&timeout=4000&return_full=1
+		% will do same, but on timeout/solved will return all results, as per get_results call
+		"get_results_long" ->
+			get_results_long_poll(Req, Qs);
          
         _ ->
             Req:not_found()
     end.
 
+% long-poll for results, bails after specified time, or when solved->true
+get_results_long_poll(Req, Qs) ->
+	Qid = list_to_binary(proplists:get_value("qid", Qs)),
+	Timeout = list_to_integer(proplists:get_value("timeout", Qs, "1000")),
+	ok = playdar_resolver:register_query_observer(Qid, self()),
+	ResultsPoll = long_poll_loop(Qid, Timeout, []),
+	Results = case proplists:get_value("return_full", Qs) of
+				  undefined ->
+					  ResultsPoll;
+				  _ ->
+					  playdar_resolver:results(Qid)
+			  end,
+	R = {struct,[
+				 {"qid", Qid},
+				 {"solved", playdar_resolver:solved(Qid)}, % meh
+				 {"results", 
+				  [ {struct, proplists:delete(<<"url">>,L)} || 
+					{struct, L} <- Results ]}
+				]},
+	respond(Req, R).
+
+long_poll_loop(Qid, Timeleft, Results) ->
+	%?LOG(info, "observer_loop, timeout: ~w", [Timeleft]),
+	Start = erlang:now(),
+	receive
+		{results, Qid, Res} ->
+			NewResults = Results ++ Res,
+			NewTimeleft = Timeleft - erlang:round(timer:now_diff(erlang:now(), Start)/1000),
+			long_poll_loop(Qid, NewTimeleft, NewResults);
+		solved ->
+			Results
+	after Timeleft -> 
+			Results
+	end.
+		
+		
 % responds with json
 respond(Req, R) ->
     Qs = Req:parse_qs(),
@@ -127,5 +170,5 @@ respond(Req, R) ->
                     F++"("++mochijson2:encode(R)++");\n"})
     end.
         
-    
+
     
