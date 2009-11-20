@@ -6,7 +6,9 @@ It has an HTTP API to answer the question "can i play this song?".
 If yes, you get a localhost URL that will play the song, from whichever souce
 playdar resolved it to (plugins do the resolving).
 
-For more information see: http://www.playdar.org/
+Read on for build instructions and an "Understanding Playdar" tutorial.
+More information and binary installers / packages can be found at:
+http://www.playdar.org/
 
 Building
 --------
