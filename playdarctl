@@ -58,7 +58,7 @@ startdebug ()
 {
     echo "Starting Playdar (debug interactive mode)."
     echo "NB: to safely exit the erlang shell, type:  q().<enter>"
-    echo "Press any key to continue.."
+    echo "Press enter to continue.."
     read foo
     $ERL $ERL_OPTS \
         -sname playdar@localhost \
