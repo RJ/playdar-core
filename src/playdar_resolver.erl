@@ -258,7 +258,7 @@ handle_cast({register_sid, Sid, Qid}, State) ->
 handle_cast({add_results, Qid, Results}, State) ->
     case ets:lookup(State#state.queries, Qid) of
         [{Qid, RQ}] ->
-            {Results1, Solved, Sids} = tidy_results(Results),
+            {Results1, Solved, Sids} = tidy_results(RQ, Results),
 			% remove results below min_score
 			Results2 = lists:filter(fun({struct, E}) -> 
 											proplists:get_value(<<"score">>, E, 1.0) >= ?MIN_SCORE
@@ -388,26 +388,35 @@ results_sorter({struct, A}, {struct, B}) ->
 %
 % This isn't especially pretty, but it lets us do it all in one pass
 %
-tidy_results(Results) ->
+tidy_results(#rq{ qry=Qry }, Results) ->
+    {struct, Q} = Qry#qry.obj,
 	F = fun({struct, R}, {Rs, Sol, Sids}) ->
-				% decide if this solves the qry
-				{Solved, R1} = case proplists:get_value(<<"score">>, R) of
-								   undefined ->
-									   % calculate the score based on strings TODO
-									   {false, [ {<<"score">>, 0.123} | R ]};
-								   1.0 ->
-									   {true, R};
-								   _ ->
-									   {false, R}
-							   end,
-				% add a sid if one doesnt exist
-				{R2, Sid} = case proplists:get_value(<<"sid">>, R1) of
-								undefined ->
-									Uuid = playdar_utils:uuid_gen(),
-									{[{<<"sid">>, Uuid} | R1], Uuid};
-								S ->
-									{R1, S}
-							end,               
-				{[{struct, R2}|Rs], Sol or Solved, [Sid|Sids]}
+		    % decide if this solves the qry
+            {Solved, R1} = case proplists:get_value(<<"score">>, R) of
+                               undefined ->
+                                   Gv = fun(Prop, Lst) ->
+                                                playdar_utils:clean(
+                                                  proplists:get_value(Prop, Lst, <<"">>))
+                                        end,
+                                   ArtQ = Gv(<<"artist">>, Q),
+                                   TrkQ = Gv(<<"track">>,  Q),
+                                   ArtR = Gv(<<"artist">>, R),
+                                   TrkR = Gv(<<"track">>,  R),
+                                   Sc = playdar_utils:calc_score({ArtQ, ArtR}, {TrkQ, TrkR}),
+                                   {Sc >= 0.99, [ {<<"score">>, Sc} | R ]};
+                               1.0 ->
+                                   {true, R};
+                               _ ->
+                                   {false, R}
+                           end,
+            % add a sid if one doesnt exist
+            {R2, Sid} = case proplists:get_value(<<"sid">>, R1) of
+                            undefined ->
+                                Uuid = playdar_utils:uuid_gen(),
+                                {[{<<"sid">>, Uuid} | R1], Uuid};
+                            S ->
+                                {R1, S}
+                        end,               
+            {[{struct, R2}|Rs], Sol or Solved, [Sid|Sids]}
 		end,
 	lists:foldl(F, {[], false, []}, Results).
