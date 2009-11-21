@@ -113,9 +113,8 @@ http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
              end;
 		
 		% /api/?method=get_results_long&timeout=4000
-		% will return results found in those 4 secs, and return immediately on solved
-		% /api/?method=get_results_long&timeout=4000&return_full=1
-		% will do same, but on timeout/solved will return all results, as per get_results call
+		% will return all results found so far in those 4 secs, 
+        % and return immediately on solved
 		"get_results_long" ->
 			get_results_long_poll(Req, Qs);
          
@@ -126,18 +125,15 @@ http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
 % long-poll for results, bails after specified time, or when solved->true
 get_results_long_poll(Req, Qs) ->
 	Qid = list_to_binary(proplists:get_value("qid", Qs)),
-	Timeout = list_to_integer(proplists:get_value("timeout", Qs, "1000")),
+	Timeout0 = list_to_integer(proplists:get_value("timeout", Qs, "4000")),
+    Timeout = erlang:min(Timeout0, 60000),
 	ok = playdar_resolver:register_query_observer(Qid, self()),
-	ResultsPoll = long_poll_loop(Qid, Timeout, []),
-	Results = case proplists:get_value("return_full", Qs) of
-				  undefined ->
-					  ResultsPoll;
-				  _ ->
-					  playdar_resolver:results(Qid)
-			  end,
-	R = {struct,[
+	_ResultsPoll = long_poll_loop(Qid, Timeout, []),
+    {Results, #qry{obj = Q}, Solved} = playdar_resolver:results(Qid),
+    R = {struct,[
 				 {"qid", Qid},
-				 {"solved", playdar_resolver:solved(Qid)}, % meh
+                 {"query", Q},
+				 {"solved", Solved},
 				 {"results", 
 				  [ {struct, proplists:delete(<<"url">>,L)} || 
 					{struct, L} <- Results ]}
