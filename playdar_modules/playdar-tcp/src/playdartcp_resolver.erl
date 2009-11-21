@@ -44,9 +44,11 @@ init([]) ->
     playdar_resolver:add_resolver(?MODULE, self()),
     % Register our web request handler (for our localhost web gui)
     playdar_http_registry:register_handler("playdartcp", fun playdartcp_web:http_req/2, "playdartcp Connection Status Page", "/playdartcp"),
-	% register our ctl cmd:
+	% register our ctl cmds:
 	playdar_ctl:register_command("peers", "List current playdartcp connections",
 							 fun peers/1),
+    playdar_ctl:register_command("connect", "<ip> <port> [<true|false>] Connect to a remote playdar node using playdartcp.",
+                                 fun connect/1), 
     {ok, #state{ seenqids=ets:new(seenqids,[]) }}.
 
 handle_call(_Request, _From, State) ->
@@ -90,4 +92,20 @@ peers([]) ->
 									[Name, Pid, WeShare, TheyShare])
 				  end, Peers),
 	?OK.
+
+connect([Ip, PortS | Rest]) ->
+    {Port,_} = string:to_integer(PortS),
+    io:format("Attempting connection to ~s:~w...~n",[Ip,Port]),
+    io:format("Check http://localhost:60210/playdartcp for status.~n",[]),
+    case Rest of
+        ["true"] -> 
+            playdartcp_router:connect(Ip, Port, true);
+        ["false"] -> 
+            playdartcp_router:connect(Ip, Port, false);
+        [] ->
+            playdartcp_router:connect(Ip, Port)
+    end,
+    ?OK.
+    
+
 

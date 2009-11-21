@@ -20,7 +20,7 @@
 <td>{{ p.conndate|force_escape }}</td>
 <td>{{p.weshare|force_escape}} / {{p.theyshare|force_escape}}</td>
 <td><a onclick="return confirm('Sure you want to disconnect this peer?');"
-       href="/p2p?ftok={{ftok}}&disconnect={{p.name|urlencode}}">disconnect</a></td>
+       href="/playdartcp?ftok={{ftok}}&disconnect={{p.name|urlencode}}">disconnect</a></td>
 </tr>
 {% endfor %}
 </table>
