@@ -93,37 +93,50 @@ http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
             respond(Req, R);
             
         "get_results" ->
-            Qid = list_to_binary(proplists:get_value("qid", Qs)),
-			case playdar_resolver:results(Qid) of
-				undefined ->
-					Req:not_found();
-				{Results, #qry{obj = Q}, Solved} ->
-                    R = {struct,[
-                            {"qid", Qid},
-							{"poll_interval", 1000},
-							{"poll_limit", 6}, % TODO sum of all targettimes from loaded resolvers
-                            {"query", Q},
-							{"solved", Solved},
-                            {"results", 
-                                [ {struct, proplists:delete(<<"url">>,L)} || 
-                                  {struct, L} <- Results ]}
-                        ]},
-                    respond(Req, R)
-             end;
+            get_results(Req, Qs);
 		
 		% /api/?method=get_results_long&timeout=4000
 		% will return all results found so far in those 4 secs, 
         % and return immediately on solved
 		"get_results_long" ->
+            
 			get_results_long_poll(Req, Qs);
          
         _ ->
             Req:not_found()
     end.
 
+get_results(Req, Qs) ->
+    Qid = list_to_binary(proplists:get_value("qid", Qs)),
+    case playdar_resolver:results(Qid) of
+        undefined ->
+            Req:not_found();
+        {Results, #qry{obj = Q}, Solved} ->
+            R = {struct,[
+                         {"qid", Qid},
+                         {"poll_interval", 1000},
+                         {"poll_limit", 6}, % TODO sum of all targettimes from loaded resolvers
+                         {"query", Q},
+                         {"solved", Solved},
+                         {"results", 
+                          [ {struct, proplists:delete(<<"url">>,L)} || 
+                            {struct, L} <- Results ]}
+                        ]},
+            respond(Req, R)
+    end.
+
 % long-poll for results, bails after specified time, or when solved->true
 get_results_long_poll(Req, Qs) ->
 	Qid = list_to_binary(proplists:get_value("qid", Qs)),
+    case playdar_resolver:solved(Qid) of
+        true ->
+            get_results(Req, Qs);
+        false ->
+            get_results_long_poll_real(Req, Qs)
+    end.
+        
+get_results_long_poll_real(Req, Qs) -> 
+    Qid = list_to_binary(proplists:get_value("qid", Qs)),
 	Timeout0 = list_to_integer(proplists:get_value("timeout", Qs, "4000")),
     Timeout = erlang:min(Timeout0, 60000),
 	ok = playdar_resolver:register_query_observer(Qid, self()),
