@@ -1,0 +1,7 @@
+= ruby-api-wrapper
+
+Description goes here.
+
+== Copyright
+
+Copyright (c) 2009 jwagener. See LICENSE for details.

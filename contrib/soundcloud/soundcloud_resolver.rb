@@ -3,10 +3,7 @@
 # to see this in action.
 
 require File.dirname(__FILE__) + '/../resolver_libs/playdar_resolver'
-
-require 'rubygems'
-gem 'soundcloud-ruby-api-wrapper'
-require 'soundcloud'
+require File.dirname(__FILE__) + '/soundcloud-ruby-api-wrapper-0.4.5/lib/soundcloud'
 
 class SoundCloudResolver < PlaydarResolver
   def resolver_settings()
