@@ -258,41 +258,47 @@ handle_cast({register_sid, Sid, Qid}, State) ->
 handle_cast({add_results, Qid, Results}, State) ->
     case ets:lookup(State#state.queries, Qid) of
         [{Qid, RQ}] ->
-            ?LOG(debug, "add_results ~s (~w)",  [Qid, length(Results)]),
             {Results1, Solved, Sids} = tidy_results(Results),
 			% remove results below min_score
 			Results2 = lists:filter(fun({struct, E}) -> 
 											proplists:get_value(<<"score">>, E, 0) >= ?MIN_SCORE
 									end, Results1),
-            % add new results, and update the "solved" field if appropriate
-            RQ1 = RQ#rq{results = Results2 ++ RQ#rq.results,
-                        solved = RQ#rq.solved or Solved},
-			% Did we just change the solved status to true? (will never go true->false)
-			case RQ#rq.solved /= RQ1#rq.solved of
-				true -> 
-					% don't bother asking any other resolvers about this qry
-					erlang:exit(RQ#rq.pipelinepid, solved);						
-				false -> noop
-			end,					
-            ets:insert(State#state.queries, {Qid, RQ1}),
-            % register the new SIDs
-            ets:insert(State#state.sources, [ {Sid, Qid} || Sid <- Sids]),
-			% broadcast to all observers of this query
-			NewlySolved = RQ#rq.solved /= RQ1#rq.solved,
-			lists:foreach(fun(ObsPid) -> ObsPid ! {results, Qid, Results2},
-										 case NewlySolved of
-											 true -> ObsPid ! solved;
-											 false -> noop
-										 end
-						  end,
-						  RQ#rq.observers),
-			% fire callbacks
-			lists:foreach(fun(Cb)->
-								  lists:foreach(fun(R)->
-														Cb(R)
-												end, Results2)
-						  end, RQ1#rq.callbacks ),
-            {noreply, State};
+            case Results2 of 
+                [] ->
+                    {noreply, State};
+                _ ->
+                    ?LOG(debug, "add_results ~s (~w)",  [Qid, length(Results2)]),
+                    % add new results, and update the "solved" field if appropriate
+                    RQ1 = RQ#rq{results = Results2 ++ RQ#rq.results,
+                                solved = RQ#rq.solved or Solved},
+                    % Did we just change the solved status to true? (will never go true->false)
+                    case NewlySolved = (RQ#rq.solved /= RQ1#rq.solved) of
+                        true -> 
+                            ?LOG(info, "SOLVED, aborting remaining pipeline for ~s", [Qid]),
+                            % don't bother asking any other resolvers about this qry
+                            erlang:exit(RQ#rq.pipelinepid, solved);						
+                        false -> noop
+                    end,					
+                    ets:insert(State#state.queries, {Qid, RQ1}),
+                    % register the new SIDs
+                    ets:insert(State#state.sources, [ {Sid, Qid} || Sid <- Sids]),
+                    % broadcast to all observers of this query
+                    %?LOG(info, "Newly solved: ~w Qid: ~s", [NewlySolved, Qid]),
+                    lists:foreach(fun(ObsPid) -> case NewlySolved of
+                                                     true -> ObsPid ! solved;
+                                                     false -> noop
+                                                 end,
+                                                 ObsPid ! {results, Qid, Results2}
+                                  end,
+                                  RQ#rq.observers),
+                    % fire callbacks
+                    lists:foreach(fun(Cb)->
+                                          lists:foreach(fun(R)->
+                                                                Cb(R)
+                                                        end, Results2)
+                                  end, RQ1#rq.callbacks ),
+                    {noreply, State}
+            end;
         [] ->
             ?LOG(warning, "add_results to invalid QID ~s",  [Qid]),
             {noreply, State}

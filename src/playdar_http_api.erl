@@ -100,7 +100,6 @@ http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
 				{Results, #qry{obj = Q}, Solved} ->
                     R = {struct,[
                             {"qid", Qid},
-                            {"refresh_interval", 1000}, % TODO legacy, to be removed
 							{"poll_interval", 1000},
 							{"poll_limit", 6}, % TODO sum of all targettimes from loaded resolvers
                             {"query", Q},
@@ -149,6 +148,7 @@ long_poll_loop(Qid, Timeleft, Results) ->
 			NewTimeleft = Timeleft - erlang:round(timer:now_diff(erlang:now(), Start)/1000),
 			long_poll_loop(Qid, NewTimeleft, NewResults);
 		solved ->
+            ?LOG(info, "LONG POLL got solved",[]),
 			Results
 	after Timeleft -> 
 			Results
