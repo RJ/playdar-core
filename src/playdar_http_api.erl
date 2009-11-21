@@ -2,6 +2,8 @@
 -include("playdar.hrl").
 -export([http_req/2]).
 
+-define(VER, <<"0.1.1">>).
+
 http_req(Req, DocRoot) ->
     Qs = Req:parse_qs(),
 	JsonP = proplists:get_value("jsonp", Qs, ""),
@@ -21,7 +23,7 @@ http_req(Req, DocRoot) ->
                 {true, _Props} ->
                     R = {struct,[   
                             {"name", <<"playdar">>},
-                            {"version", <<"0.1.0">>},
+                            {"version", ?VER},
                             {"authenticated", true},
                             {"hostname", <<"TODO">>},
                             {"capabilities", {struct,[
@@ -35,7 +37,7 @@ http_req(Req, DocRoot) ->
                 {false, _} ->
                     R = {struct, [
                             {"name", <<"playdar">>},
-                            {"version", <<"0.1.0">>},
+                            {"version", ?VER},
                             {"authenticated", false}
                         ]},
                     respond(Req, R)
