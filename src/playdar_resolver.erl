@@ -261,7 +261,7 @@ handle_cast({add_results, Qid, Results}, State) ->
             {Results1, Solved, Sids} = tidy_results(Results),
 			% remove results below min_score
 			Results2 = lists:filter(fun({struct, E}) -> 
-											proplists:get_value(<<"score">>, E, 0) >= ?MIN_SCORE
+											proplists:get_value(<<"score">>, E, 1.0) >= ?MIN_SCORE
 									end, Results1),
             case Results2 of 
                 [] ->
