@@ -42,7 +42,13 @@ calc_score({ArtClean, Art}, {TrkClean, Trk}, {AlbClean, Alb}) ->
     TrkScore = 1-math:cos(TrkScore0*math:pi()/2),
     AlbScore = 1-math:cos(AlbScore0*math:pi()/2),
     % combine them, weighting artist more than track:
-    Score0 = (ArtScore + TrkScore + AlbScore)/3.0,
+    case string:equal(Alb, "") of
+      false ->
+        Score0 = (ArtScore + TrkScore + AlbScore)/3.0;
+      true -> 
+        Score0 = (ArtScore + TrkScore)/2.0
+    end,
+    
     Score = case  Score0 > 0.99 of
                 true  -> 1.0;
                 false -> Score0
