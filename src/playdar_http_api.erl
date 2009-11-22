@@ -141,18 +141,23 @@ get_results_long_poll_real(Req, Qs) ->
     Qid = list_to_binary(proplists:get_value("qid", Qs)),
 	Timeout0 = list_to_integer(proplists:get_value("timeout", Qs, "4000")),
     Timeout = erlang:min(Timeout0, 60000),
-	ok = playdar_resolver:register_query_observer(Qid, self()),
-	_ResultsPoll = long_poll_loop(Qid, Timeout, []),
-    {Results, #qry{obj = Q}, Solved} = playdar_resolver:results(Qid),
-    R = {struct,[
-				 {"qid", Qid},
-                 {"query", Q},
-				 {"solved", Solved},
-				 {"results", 
-				  [ {struct, proplists:delete(<<"url">>,L)} || 
-					{struct, L} <- Results ]}
-				]},
-	respond(Req, R).
+	case playdar_resolver:register_query_observer(Qid, self()) of
+        ok ->
+            _ResultsPoll = long_poll_loop(Qid, Timeout, []),
+            {Results, #qry{obj = Q}, Solved} = playdar_resolver:results(Qid),
+            R = {struct,[
+                         {"qid", Qid},
+                         {"query", Q},
+                         {"solved", Solved},
+                         {"results", 
+                          [ {struct, proplists:delete(<<"url">>,L)} || 
+                            {struct, L} <- Results ]}
+                        ]},
+            respond(Req, R);
+        undefined ->
+            ?LOG(error, "LONG POLL on invalid qid: ~s", [Qid]),
+            Req:not_found()
+    end.
 
 long_poll_loop(Qid, Timeleft, Results) ->
 	%?LOG(info, "observer_loop, timeout: ~w", [Timeleft]),
