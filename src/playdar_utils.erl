@@ -1,6 +1,8 @@
 -module(playdar_utils).
 -include("playdar.hrl").
--export([uuid_gen/0, levenshtein/2, list_agg/1, calc_score/2, clean/1 ]).
+
+-export([uuid_gen/0, levenshtein/2, list_agg/1, calc_score/3, clean/1 ]).
+
 -import(random).
 
 %% UUID Generation: http://github.com/travis/erlang-uuid/blob/master/uuid.erl
@@ -23,25 +25,36 @@ get_parts(<<TL:32, TM:16, THV:16, CSR:8, CSL:8, N:48>>) ->
 clean(Name) when is_binary(Name) -> string:to_lower(binary_to_list(Name)).
   
 % score betweek 0-1 when ArtClean is original, Art is the input/query etc
-calc_score({ArtClean, Art}, {TrkClean, Trk}) ->
+calc_score({ArtClean, Art}, {TrkClean, Trk}, {AlbClean, Alb}) ->
     ArtDist = levenshtein(Art, ArtClean),
     TrkDist = levenshtein(Trk, TrkClean),
+    AlbDist = levenshtein(Alb, AlbClean),
     % calc 0-1 scores for artist and track match:
     MaxArt = erlang:max(0.001, length(ArtClean)),
     MaxTrk = erlang:max(0.001, length(TrkClean)),
+    MaxAlb = erlang:max(0.001, length(AlbClean)),
     ArtScore0 = erlang:max(0, length(ArtClean) - ArtDist) / MaxArt,
     TrkScore0 = erlang:max(0, length(TrkClean) - TrkDist) / MaxTrk,
+    AlbScore0 = erlang:max(0, length(AlbClean) - AlbDist) / MaxAlb,
+
     % exagerate lower scores
     ArtScore = 1-math:cos(ArtScore0*math:pi()/2),
     TrkScore = 1-math:cos(TrkScore0*math:pi()/2),
-    % combine them
-    Score0 = (ArtScore + TrkScore)/2.0,
-    Score = case  Score0 >= 0.99 of
+    AlbScore = 1-math:cos(AlbScore0*math:pi()/2),
+    % combine them, weighting artist more than track:
+    case string:equal(Alb, "") of
+      false ->
+        Score0 = (ArtScore + TrkScore + AlbScore)/3.0;
+      true -> 
+        Score0 = (ArtScore + TrkScore)/2.0
+    end,
+    
+    Score = case  Score0 > 0.99 of
                 true  -> 1.0;
                 false -> Score0
             end,
     case ?CONFVAL(explain, false) of
-        true    -> ?LOG(info, "Score:~f Art:~f Trk:~f\t~s - ~s", [Score, ArtScore, TrkScore, ArtClean, TrkClean]);
+        true    -> ?LOG(info, "Score:~f Art:~f Trk:~f Alb:~f\t~s - ~s - ~s", [Score, ArtScore, TrkScore, AlbScore, ArtClean, TrkClean, AlbClean]);
         false   -> ok
     end,
     Score.

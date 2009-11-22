@@ -65,7 +65,7 @@ handle_cast({resolve, #qry{qid = Qid, obj = Obj}}, State) ->
     case Obj of
         {struct, Mq} -> % Mq is a proplist
             Hostname = ?CONFVAL(name, "unknown"),
-			Name = case State#state.customname of
+			      Name = case State#state.customname of
 					   "" -> Hostname;
 					   C  -> Hostname ++ "/" ++ C
 				   end,
@@ -82,12 +82,12 @@ handle_cast({resolve, #qry{qid = Qid, obj = Obj}}, State) ->
                                 {<<"size">>, proplists:get_value(size, Props)},
                                 {<<"source">>, list_to_binary(Name)}
                             ]},
-				playdar_resolver:add_results(Qid, Rep)           
+				        playdar_resolver:add_results(Qid, Rep)           
             end,
             Art = proplists:get_value(<<"artist">>,Mq,<<"">>),
             Trk = proplists:get_value(<<"track">>,Mq,<<"">>),
             Alb = proplists:get_value(<<"album">>,Mq,<<"">>),
-			Mimetypes = proplists:get_value(<<"mimetypes">>,Mq),
+			      Mimetypes = proplists:get_value(<<"mimetypes">>,Mq),
             Now = now(),
             Files = search(playdar_utils:clean(Art),
                            playdar_utils:clean(Alb),
@@ -95,7 +95,7 @@ handle_cast({resolve, #qry{qid = Qid, obj = Obj}}, State) ->
                            Mimetypes,
                            State),
             Time = timer:now_diff(now(), Now),
-            ?LOG(info, "Library search took: ~wms for ~s - ~s",[Time/1000, Art, Trk]),
+            ?LOG(info, "Library search took: ~wms for ~s - ~s - ~s",[Time/1000, Art, Trk, Alb]),
             lists:foreach(Report, Files);
 
         _ -> noop %Unhandled query type
@@ -184,9 +184,10 @@ ngram( In, Ngrams )             when length(In) =< 3 -> ngram( "", [ In | Ngrams
 
 % Lame fuzzy search algorithm using ngrams to find candidates, then
 % using edit-distance to rank+score candidates.
-search(Art,_Alb,Trk,Mimetypes,State) ->
+search(Art,Alb,Trk,Mimetypes,State) ->
     L = [{artist, list_to_atom(N)} || {N,_Num} <- ngram(Art)] ++
-        [{track,  list_to_atom(N)} || {N,_Num} <- ngram(Trk)],
+        [{track,  list_to_atom(N)} || {N,_Num} <- ngram(Trk)] ++ 
+        [{album,  list_to_atom(N)} || {N,_Num} <- ngram(Alb)],
     R = [ begin
               D = dets:lookup(State#state.ndb, Ng),
               [ Fid || {_Ngram, Fid} <- D ]
@@ -204,15 +205,16 @@ search(Art,_Alb,Trk,Mimetypes,State) ->
               end || {FileId, _CandScore} <- C ],
     % next do the edit-distance calculation to generate a final score:
 	case ?CONFVAL(explain, false) of
-		true	-> ?LOG(info, "Scoring: ~s - ~s", [Art, Trk]);
+		true	-> ?LOG(info, "Scoring: ~s - ~s - ~s", [Art, Trk, Alb]);
 		false	-> ok
 	end,
     Results = [ begin
 					Scoreit = fun() ->
 								ArtClean = proplists:get_value(artist_clean, FL),
 								TrkClean = proplists:get_value(track_clean, FL),
+								AlbClean = proplists:get_value(album_clean, FL),
 								Score = playdar_utils:calc_score({ArtClean, Art}, 
-																 {TrkClean, Trk}),
+																 {TrkClean, Trk}, {AlbClean, Alb}),
 								{ FL, Score }
 							  end,
 					case Mimetypes of
