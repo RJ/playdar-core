@@ -43,7 +43,7 @@ handle_cast({resolve, Qry}, State) ->
     {struct, J2} = proplists:get_value(<<"response">>, J, []),
     {struct, J3} = proplists:get_value(<<"data">>, J2, []),
     Numfound = proplists:get_value(<<"totalFound">>, J3),
-    ?LOG(info, "AOL found ~w potential results", [Numfound]),
+    ?LOG(info, "AOL found ~s potential results", [Numfound]),
     J4 = proplists:get_value(<<"assets">>, J3, []),
     J5 = lists:filter(fun({struct, E}) -> 
                         lists:suffix(".mp3", string:to_lower(
