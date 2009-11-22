@@ -1,7 +1,8 @@
 -module(playdar_utils).
 -include("playdar.hrl").
 
--export([uuid_gen/0, levenshtein/2, list_agg/1, calc_score/3, clean/1 ]).
+-export([uuid_gen/0, levenshtein/2, list_agg/1,
+         calc_score/2, calc_score/3, clean/1 ]).
 
 -import(random).
 
@@ -25,6 +26,9 @@ get_parts(<<TL:32, TM:16, THV:16, CSR:8, CSL:8, N:48>>) ->
 clean(Name) when is_binary(Name) -> string:to_lower(binary_to_list(Name)).
   
 % score betweek 0-1 when ArtClean is original, Art is the input/query etc
+calc_score({ArtClean, Art}, {TrkClean, Trk}) ->
+    calc_score({ArtClean, Art}, {TrkClean, Trk}, {"",""}).
+    
 calc_score({ArtClean, Art}, {TrkClean, Trk}, {AlbClean, Alb}) ->
     ArtDist = levenshtein(Art, ArtClean),
     TrkDist = levenshtein(Trk, TrkClean),
