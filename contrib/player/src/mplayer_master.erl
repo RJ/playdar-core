@@ -5,7 +5,7 @@
 
 %% API
 -export([start_link/0, play/1, stop/0, send/1, np/0, get_property/1, pause/0,
-		 volume/0]).
+		 volume/0, pos/0, duration/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -24,6 +24,9 @@ np() 			-> get_property("path").
 volume() 		-> get_property("volume").
 %set_volume		
 get_property(P)	-> gen_server:call(?MODULE, {get_property, P}).
+pos()           -> gen_server:call(?MODULE, pos).
+duration()      -> gen_server:call(?MODULE, duration).
+
 
 %% gen_server callbacks
 
@@ -54,6 +57,27 @@ handle_call({get_property, P}, _From, State) ->
 					end
 			end
 	end;
+
+handle_call(pos, _From, State) ->
+    port_command(State#state.port, "get_time_pos\n"),
+    case receive_line(State) of
+        "ANS_TIME_POSITION=" ++ Ts ->
+            {Num, _Rest} = string:to_float(Ts),
+            {reply, Num, State};
+        timeout ->
+            {reply, -1, State}
+    end;
+
+handle_call(duration, _From, State) ->
+    port_command(State#state.port, "get_time_length\n"),
+    case receive_line(State) of
+        "ANS_LENGTH=" ++ Ts ->
+            {Num, _Rest} = string:to_float(Ts),
+            {reply, Num, State};
+        timeout ->
+            {reply, -1, State}
+    end;
+
 
 handle_call(_Request, _From, State) ->
     Reply = ok,

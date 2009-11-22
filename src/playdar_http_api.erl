@@ -1,6 +1,6 @@
 -module(playdar_http_api).
 -include("playdar.hrl").
--export([http_req/2]).
+-export([http_req/2, respond/2]).
 
 -define(VER, <<"0.1.1">>).
 
