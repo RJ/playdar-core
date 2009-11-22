@@ -2,7 +2,6 @@
 -include("playdar.hrl").
 
 -export([uuid_gen/0, levenshtein/2, list_agg/1, calc_score/3, clean/1 ]).
--export([uuid_gen/0, levenshtein/2, list_agg/1, calc_score/2, clean/1 ]).
 
 -import(random).
 
