@@ -2,6 +2,8 @@
 -include("playdar.hrl").
 -export([http_req/2]).
 
+-define(VER, <<"0.1.1">>).
+
 http_req(Req, DocRoot) ->
     Qs = Req:parse_qs(),
 	JsonP = proplists:get_value("jsonp", Qs, ""),
@@ -21,7 +23,7 @@ http_req(Req, DocRoot) ->
                 {true, _Props} ->
                     R = {struct,[   
                             {"name", <<"playdar">>},
-                            {"version", <<"0.1.0">>},
+                            {"version", ?VER},
                             {"authenticated", true},
                             {"hostname", <<"TODO">>},
                             {"capabilities", {struct,[
@@ -35,7 +37,7 @@ http_req(Req, DocRoot) ->
                 {false, _} ->
                     R = {struct, [
                             {"name", <<"playdar">>},
-                            {"version", <<"0.1.0">>},
+                            {"version", ?VER},
                             {"authenticated", false}
                         ]},
                     respond(Req, R)
@@ -93,29 +95,81 @@ http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
             respond(Req, R);
             
         "get_results" ->
-            Qid = list_to_binary(proplists:get_value("qid", Qs)),
-			case playdar_resolver:results(Qid) of
-				undefined ->
-					Req:not_found();
-				{Results, #qry{obj = Q}, Solved} ->
-                    R = {struct,[
-                            {"qid", Qid},
-                            {"refresh_interval", 1000}, % TODO legacy, to be removed
-							{"poll_interval", 1000},
-							{"poll_limit", 6}, % TODO sum of all targettimes from loaded resolvers
-                            {"query", Q},
-							{"solved", Solved},
-                            {"results", 
-                                [ {struct, proplists:delete(<<"url">>,L)} || 
-                                  {struct, L} <- Results ]}
-                        ]},
-                    respond(Req, R)
-             end;
+            get_results(Req, Qs);
+		
+		% /api/?method=get_results_long&timeout=4000
+		% will return all results found so far in those 4 secs, 
+        % and return immediately on solved
+		"get_results_long" ->
+            
+			get_results_long_poll(Req, Qs);
          
         _ ->
             Req:not_found()
     end.
 
+get_results(Req, Qs) ->
+    Qid = list_to_binary(proplists:get_value("qid", Qs)),
+    case playdar_resolver:results(Qid) of
+        undefined ->
+            Req:not_found();
+        {Results, #qry{obj = Q}, Solved} ->
+            R = {struct,[
+                         {"qid", Qid},
+                         {"poll_interval", 1000},
+                         {"poll_limit", 6}, % TODO sum of all targettimes from loaded resolvers
+                         {"query", Q},
+                         {"solved", Solved},
+                         {"results", 
+                          [ {struct, proplists:delete(<<"url">>,L)} || 
+                            {struct, L} <- Results ]}
+                        ]},
+            respond(Req, R)
+    end.
+
+% long-poll for results, bails after specified time, or when solved->true
+get_results_long_poll(Req, Qs) ->
+	Qid = list_to_binary(proplists:get_value("qid", Qs)),
+    case playdar_resolver:solved(Qid) of
+        true ->
+            get_results(Req, Qs);
+        false ->
+            get_results_long_poll_real(Req, Qs)
+    end.
+        
+get_results_long_poll_real(Req, Qs) -> 
+    Qid = list_to_binary(proplists:get_value("qid", Qs)),
+	Timeout0 = list_to_integer(proplists:get_value("timeout", Qs, "4000")),
+    Timeout = erlang:min(Timeout0, 60000),
+	ok = playdar_resolver:register_query_observer(Qid, self()),
+	_ResultsPoll = long_poll_loop(Qid, Timeout, []),
+    {Results, #qry{obj = Q}, Solved} = playdar_resolver:results(Qid),
+    R = {struct,[
+				 {"qid", Qid},
+                 {"query", Q},
+				 {"solved", Solved},
+				 {"results", 
+				  [ {struct, proplists:delete(<<"url">>,L)} || 
+					{struct, L} <- Results ]}
+				]},
+	respond(Req, R).
+
+long_poll_loop(Qid, Timeleft, Results) ->
+	%?LOG(info, "observer_loop, timeout: ~w", [Timeleft]),
+	Start = erlang:now(),
+	receive
+		{results, Qid, Res} ->
+			NewResults = Results ++ Res,
+			NewTimeleft = Timeleft - erlang:round(timer:now_diff(erlang:now(), Start)/1000),
+			long_poll_loop(Qid, NewTimeleft, NewResults);
+		solved ->
+            ?LOG(info, "LONG POLL got solved",[]),
+			Results
+	after Timeleft -> 
+			Results
+	end.
+		
+		
 % responds with json
 respond(Req, R) ->
     Qs = Req:parse_qs(),
@@ -127,5 +181,5 @@ respond(Req, R) ->
                     F++"("++mochijson2:encode(R)++");\n"})
     end.
         
-    
+
     

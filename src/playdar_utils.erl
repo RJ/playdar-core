@@ -1,6 +1,9 @@
 -module(playdar_utils).
 -include("playdar.hrl").
--export([uuid_gen/0, levenshtein/2, list_agg/1, calc_score/3 ]).
+
+-export([uuid_gen/0, levenshtein/2, list_agg/1, calc_score/3, clean/1 ]).
+-export([uuid_gen/0, levenshtein/2, list_agg/1, calc_score/2, clean/1 ]).
+
 -import(random).
 
 %% UUID Generation: http://github.com/travis/erlang-uuid/blob/master/uuid.erl
@@ -19,7 +22,9 @@ to_string(U) ->
 get_parts(<<TL:32, TM:16, THV:16, CSR:8, CSL:8, N:48>>) ->
     [TL, TM, THV, CSR, CSL, N].
 
-
+%TODO remove punctuation, normalize etc:
+clean(Name) when is_binary(Name) -> string:to_lower(binary_to_list(Name)).
+  
 % score betweek 0-1 when ArtClean is original, Art is the input/query etc
 calc_score({ArtClean, Art}, {TrkClean, Trk}, {AlbClean, Alb}) ->
     ArtDist = levenshtein(Art, ArtClean),

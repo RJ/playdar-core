@@ -89,7 +89,11 @@ handle_cast({resolve, #qry{qid = Qid, obj = Obj}}, State) ->
             Alb = proplists:get_value(<<"album">>,Mq,<<"">>),
 			      Mimetypes = proplists:get_value(<<"mimetypes">>,Mq),
             Now = now(),
-            Files = search(clean(Art),clean(Alb),clean(Trk),Mimetypes,State),
+            Files = search(playdar_utils:clean(Art),
+                           playdar_utils:clean(Alb),
+                           playdar_utils:clean(Trk),
+                           Mimetypes,
+                           State),
             Time = timer:now_diff(now(), Now),
             ?LOG(info, "Library search took: ~wms for ~s - ~s - ~s",[Time/1000, Art, Trk, Alb]),
             lists:foreach(Report, Files);
@@ -104,9 +108,9 @@ handle_call({add_file, File, Mtime, Size, Tags}, _From, State) when is_list(Tags
             Art = proplists:get_value(<<"artist">>, Tags, <<"">>),
             Alb = proplists:get_value(<<"album">>, Tags, <<"">>),
             Trk = proplists:get_value(<<"track">>, Tags, <<"">>),
-            Artist = clean(Art),
-            Album  = clean(Alb),
-            Track  = clean(Trk),
+            Artist = playdar_utils:clean(Art),
+            Album  = playdar_utils:clean(Alb),
+            Track  = playdar_utils:clean(Trk),
             FileId = list_to_binary(File), %TODO hmm.
 			?LOG(library_scan, "~s\t~s\t~s\t~s", [File, Artist, Album, Track]),
             Props = [   {url, proplists:get_value(<<"url">>, Tags, <<"">>)},
@@ -169,9 +173,6 @@ code_change(_OldVsn, State, _Extra) ->
 %% --------------------------------------------------------------------
 %%% Internal functions
 %% --------------------------------------------------------------------
-
-%TODO remove punctuation, normalize etc:
-clean(Name) when is_binary(Name) -> string:to_lower(binary_to_list(Name)).
 
 % ngram("abcdabcd") -> [{"dab",1},{"cda",1},{"bcd",2},{"abc",2}]
 ngram( In )                     when is_list(In)     -> playdar_utils:list_agg(lists:sort(ngram( string:to_lower(In), [] ))).

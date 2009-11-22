@@ -64,7 +64,8 @@
 %% List of module DIRECTORY NAMES that should not be loaded automatically:
 
 {modules_blacklist, [
-    "playdar-tcp"
+    "playdar-tcp",
+    "audioscrobbler"
 ]}.
 
 %% Set to true for log output listing query results with scoring information

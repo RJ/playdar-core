@@ -25,7 +25,7 @@ localonly(Pid)			-> gen_server:call(Pid, localonly).
 init([Exe]) ->
     Port = open_port({spawn, Exe}, [binary, {packet, 4}, use_stdio]),
     DefName = <<"undefined">>,
-    {ok, #state{port=Port,exe=Exe,name=DefName,tt=50,weight=1,localonly=false}}.
+    {ok, #state{port=Port,exe=Exe,name=DefName,tt=50,weight=1,localonly=true}}.
 
 handle_call(weight, _From, State) -> {reply, State#state.weight, State};
 handle_call(targettime, _From, State) -> {reply, State#state.tt, State};

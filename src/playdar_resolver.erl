@@ -15,7 +15,7 @@
 -export([start_link/0, dispatch/1, dispatch/2, sid2qid/1, 
          resolvers/0, register_sid/2, add_resolver/2, resolver_pid/1,
          queries/0, add_results/2, results/1, result/1,
-		 solved/1, gc/1]).
+		 solved/1, register_query_observer/2, gc/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -27,7 +27,8 @@
 -record(rq,      {qry,        % the #qry struct (see playdar.hrl)
                   solved,     % bool - seen a 1.0 result
                   ctime,      % creation time
-                  callbacks,  % list of funs
+                  callbacks,  % list of funs to fire per result
+                  observers,  % list of pids to broadcast qry events to
                   results,    % list of results
                   pipelinepid % pid of process running the pipeline
                  }).
@@ -76,6 +77,10 @@ result(Sid)  -> gen_server:call(?MODULE, {result, Sid}).
 
 % bool: is qry solved
 solved(Qid) -> gen_server:call(?MODULE, {solved, Qid}).
+
+% this pid will be sent all incoming results for query
+register_query_observer(Qid, Pid) -> 
+    gen_server:call(?MODULE, {register_query_observer, Qid, Pid}).
 
 gc(Age) -> gen_server:cast(?MODULE, {gc, Age}).
 
@@ -149,7 +154,8 @@ handle_call({dispatch, Qry, Callbacks}, _From, State) ->
             % dispatch the qry:
 			P = start_resolver_pipeline(Qry, State#state.resolvers),
             RQ  = #rq{qry=Qry, solved=false, ctime=erlang:localtime(), 
-                      callbacks=Callbacks, results=[], pipelinepid=P},
+                      callbacks=Callbacks, results=[], pipelinepid=P,
+                      observers=[]},
             ets:insert(State#state.queries, {Qid, RQ}),
 			{reply, Qid, State}
 	end;
@@ -182,7 +188,18 @@ handle_call({result, Sid}, _From, State) ->
 			end;
 		[] ->
 			{reply, undefined, State}
-	end.           
+	end;
+
+handle_call({register_query_observer, Qid, Pid}, _From, State) ->
+	case ets:lookup(State#state.queries, Qid) of
+        [{Qid, RQ}] ->
+			RQ1 = RQ#rq{observers=[Pid|RQ#rq.observers]},
+			ets:insert(State#state.queries, {Qid, RQ1}),
+			{reply, ok, State};
+		[] -> 
+			{reply, undefined, State}
+	end.
+
 
 handle_cast({gc, Age}, State) ->
 	Now = calendar:datetime_to_gregorian_seconds(erlang:localtime()),
@@ -215,9 +232,9 @@ handle_cast({gc, Age}, State) ->
 handle_cast({add_resolver,Mod, Pid}, State) ->
     link(Pid),
 	Name 		= Mod:name(Pid),
-	Weight 		= Mod:weight(Pid),
-	TargetTime 	= Mod:targettime(Pid),
-	LocalOnly	= Mod:localonly(Pid),
+	Weight 		= ?CONFVAL({Mod, weight}, Mod:weight(Pid)),
+	TargetTime 	= ?CONFVAL({Mod, targettime}, Mod:targettime(Pid)),
+	LocalOnly	= ?CONFVAL({Mod, localonly}, Mod:localonly(Pid)),
     ?LOG(info, "add_resolver: ~w '~s' Weight:~w TT:~w Pid:~w Localonly:~w",
                [Mod, Name, Weight, TargetTime, Pid, LocalOnly]),
     R = #resolver{
@@ -241,32 +258,47 @@ handle_cast({register_sid, Sid, Qid}, State) ->
 handle_cast({add_results, Qid, Results}, State) ->
     case ets:lookup(State#state.queries, Qid) of
         [{Qid, RQ}] ->
-            ?LOG(debug, "add_results ~s (~w)",  [Qid, length(Results)]),
-            {Results1, Solved, Sids} = tidy_results(Results),
+            {Results1, Solved, Sids} = tidy_results(RQ, Results),
 			% remove results below min_score
 			Results2 = lists:filter(fun({struct, E}) -> 
-											proplists:get_value(<<"score">>, E, 0) >= ?MIN_SCORE
+											proplists:get_value(<<"score">>, E, 1.0) >= ?MIN_SCORE
 									end, Results1),
-            % add new results, and update the "solved" field if appropriate
-            RQ1 = RQ#rq{results = Results2 ++ RQ#rq.results,
-                        solved = RQ#rq.solved or Solved},
-			% Did we just change the solved status to true? (will never go true->false)
-			case RQ#rq.solved /= RQ1#rq.solved of
-				true -> 
-					% don't bother asking any other resolvers about this qry
-					erlang:exit(RQ#rq.pipelinepid, solved);						
-				false -> noop
-			end,					
-            ets:insert(State#state.queries, {Qid, RQ1}),
-            % register the new SIDs
-            ets:insert(State#state.sources, [ {Sid, Qid} || Sid <- Sids]),
-			% fire callbacks
-			lists:foreach(fun(Cb)->
-								  lists:foreach(fun(R)->
-														Cb(R)
-												end, Results2)
-						  end, RQ1#rq.callbacks ),
-            {noreply, State};
+            case Results2 of 
+                [] ->
+                    {noreply, State};
+                _ ->
+                    ?LOG(debug, "add_results ~s (~w)",  [Qid, length(Results2)]),
+                    % add new results, and update the "solved" field if appropriate
+                    RQ1 = RQ#rq{results = Results2 ++ RQ#rq.results,
+                                solved = RQ#rq.solved or Solved},
+                    % Did we just change the solved status to true? (will never go true->false)
+                    case NewlySolved = (RQ#rq.solved /= RQ1#rq.solved) of
+                        true -> 
+                            ?LOG(info, "SOLVED, aborting remaining pipeline for ~s", [Qid]),
+                            % don't bother asking any other resolvers about this qry
+                            erlang:exit(RQ#rq.pipelinepid, solved);						
+                        false -> noop
+                    end,					
+                    ets:insert(State#state.queries, {Qid, RQ1}),
+                    % register the new SIDs
+                    ets:insert(State#state.sources, [ {Sid, Qid} || Sid <- Sids]),
+                    % broadcast to all observers of this query
+                    %?LOG(info, "Newly solved: ~w Qid: ~s", [NewlySolved, Qid]),
+                    lists:foreach(fun(ObsPid) -> case NewlySolved of
+                                                     true -> ObsPid ! solved;
+                                                     false -> noop
+                                                 end,
+                                                 ObsPid ! {results, Qid, Results2}
+                                  end,
+                                  RQ#rq.observers),
+                    % fire callbacks
+                    lists:foreach(fun(Cb)->
+                                          lists:foreach(fun(R)->
+                                                                Cb(R)
+                                                        end, Results2)
+                                  end, RQ1#rq.callbacks ),
+                    {noreply, State}
+            end;
         [] ->
             ?LOG(warning, "add_results to invalid QID ~s",  [Qid]),
             {noreply, State}
@@ -353,26 +385,38 @@ results_sorter({struct, A}, {struct, B}) ->
 % Results1: new list of results, with added sids / sanitized
 % Solved: did any of these results solve the query? (ie, 1.0 score)
 % Sids: list of all sids from Results
-tidy_results(Results) ->
+%
+% This isn't especially pretty, but it lets us do it all in one pass
+%
+tidy_results(#rq{ qry=Qry }, Results) ->
+    {struct, Q} = Qry#qry.obj,
 	F = fun({struct, R}, {Rs, Sol, Sids}) ->
-				% decide if this solves the qry
-				{Solved, R1} = case proplists:get_value(<<"score">>, R) of
-								   undefined ->
-									   % calculate the score based on strings TODO
-									   {false, [ {<<"score">>, 0.123} | R ]};
-								   1.0 ->
-									   {true, R};
-								   _ ->
-									   {false, R}
-							   end,
-				% add a sid if one doesnt exist
-				{R2, Sid} = case proplists:get_value(<<"sid">>, R1) of
-								undefined ->
-									Uuid = playdar_utils:uuid_gen(),
-									{[{<<"sid">>, Uuid} | R1], Uuid};
-								S ->
-									{R1, S}
-							end,               
-				{[{struct, R2}|Rs], Sol or Solved, [Sid|Sids]}
+		    % decide if this solves the qry
+            {Solved, R1} = case proplists:get_value(<<"score">>, R) of
+                               undefined ->
+                                   Gv = fun(Prop, Lst) ->
+                                                playdar_utils:clean(
+                                                  proplists:get_value(Prop, Lst, <<"">>))
+                                        end,
+                                   ArtQ = Gv(<<"artist">>, Q),
+                                   TrkQ = Gv(<<"track">>,  Q),
+                                   ArtR = Gv(<<"artist">>, R),
+                                   TrkR = Gv(<<"track">>,  R),
+                                   Sc = playdar_utils:calc_score({ArtQ, ArtR}, {TrkQ, TrkR}),
+                                   {Sc >= 0.99, [ {<<"score">>, Sc} | R ]};
+                               1.0 ->
+                                   {true, R};
+                               _ ->
+                                   {false, R}
+                           end,
+            % add a sid if one doesnt exist
+            {R2, Sid} = case proplists:get_value(<<"sid">>, R1) of
+                            undefined ->
+                                Uuid = playdar_utils:uuid_gen(),
+                                {[{<<"sid">>, Uuid} | R1], Uuid};
+                            S ->
+                                {R1, S}
+                        end,               
+            {[{struct, R2}|Rs], Sol or Solved, [Sid|Sids]}
 		end,
 	lists:foldl(F, {[], false, []}, Results).

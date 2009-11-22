@@ -4,7 +4,7 @@
 -include("playdartcp.hrl").
 
 -export([start_link/1, register_connection/3, send_query_response/3, 
-		 connect/2, peers/0, bytes/0, broadcast/1, broadcast/2, broadcast/3,
+		 connect/2, connect/3, peers/0, bytes/0, broadcast/1, broadcast/2, broadcast/3,
          seen_qid/1, disconnect/1, sanitize_msg/1]).
 
 %% gen_server callbacks
