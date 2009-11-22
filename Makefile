@@ -32,11 +32,18 @@ ebin/erlydtl.app: $(ERLYDTL_D)/erlydtl.app
 
 ################################################################# playdar-core
 DIRS = src src/behaviours
-BEAM = $(call erl2beam, $(DIRS))
+BEAM = $(call erl2beam, $(DIRS)) ebin/playdar_default_config.beam
 vpath %.erl $(wildcard $(DIRS))
 
 ebin/script_resolver.beam: ebin/playdar_resolver.beam
 ebin/playdar.app: src/playdar.app
+
+ESCRIPT="\#!/usr/bin/env escript\n"'main(_)->\nio:format("default_config()->~p.~n",[file:consult("etc/playdar.conf.example")]),halt(0).'
+.default_config.hrl.escript:
+	echo $(ESCRIPT) > $@
+src/playdar_config.erl: include/default_config.hrl
+include/default_config.hrl: .default_config.hrl.escript
+	escript $< > $@
 
 ############################################################## playdar-modules
 TAGLIB_JSON_READER = playdar_modules/library/priv/taglib_driver/taglib_json_reader
@@ -63,7 +70,7 @@ scanner: $(TAGLIB_JSON_READER)
 
 clean:
 	rm -rf ebin $(EBIN)
-	rm -f $(ERLYDTL_PARSER)
+	rm -f $(ERLYDTL_PARSER) include/default_config.hrl .default_config.hrl.escript
 
 $(BEAM): include/playdar.hrl $(call erl2beam, $(MOCHIWEB_D) $(ERLYDTL_D))
 

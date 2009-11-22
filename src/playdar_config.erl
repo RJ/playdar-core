@@ -1,13 +1,37 @@
 -module(playdar_config).
-
 -include("playdar.hrl").
-
 -export([load/1, confval/2]).
+-include("default_config.hrl"). % must be after the export
 
 load(Etc) ->
-    true = filelib:is_dir(Etc),
-    ConfigFiles = filelib:wildcard(Etc ++ "/*.conf"),
-    lists:foreach(fun handle_config/1, ConfigFiles),
+    case filelib:is_dir(Etc) of
+        true  -> ConfigFiles = filelib:wildcard(Etc ++ "/*.conf");
+        false -> ConfigFiles = []
+    end,
+    
+    case ConfigFiles of
+        [] ->
+            % Set the defaults, if not specified:
+            {ok, Terms} = default_config(),
+            lists:foreach(fun({K,V}) ->
+                              application:set_env(playdar, K, V)
+                          end, Terms);
+        _ ->
+            lists:foreach(fun handle_config/1, ConfigFiles)
+    end,
+
+    % we must have a host name
+    case application:get_env(playdar, name) of
+        undefined ->
+            case inet:gethostname() of
+                {ok, Hostname} ->
+                    application:set_env(playdar, name, Hostname);
+                _ ->
+                    application:set_env(playdar, name, "No-name")
+            end;
+        _ -> ok
+    end,
+
     %io:format("Loaded config: ~p~n", [application:get_all_env(playdar)]),
     ok.
 
@@ -41,20 +65,6 @@ handle_config(FileFull) ->
             ?LOG(error, "Problem loading playdar config file ~n~s", [ExitText]),
             error
     end,
-    
-    % Set the defaults, if not specified:
-    
-    case application:get_env(playdar, name) of
-        undefined ->
-            case inet:gethostname() of
-                {ok, Hostname} ->
-                    application:set_env(playdar, name, Hostname);
-                _ ->
-                    application:set_env(playdar, name, "No-name")
-            end;
-        _ -> ok
-    end,
-    
     ok.
 
 confval(ConfVal_K,ConfVal_Def) ->
