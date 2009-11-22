@@ -234,7 +234,10 @@ stream_result(Req, Ref) ->
             end,
             Resp = Req:ok( { Mimetype, [{"Server", "Playdar"}|Headers], chunked } ),
             %io:format("Headers sent~n",[]),
-            stream_result_body(Req, Resp, Ref)
+            stream_result_body(Req, Resp, Ref);
+        
+        {Ref, error, _Reason} ->
+            Req:respond({503, [], <<"Internal fail streaming this resource">>})
             
         after 12000 ->
             Req:ok({"text/plain", [{"Server", "Playdar"}], "Timeout on headers/initialising stream"})
