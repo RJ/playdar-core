@@ -1,0 +1,172 @@
+<html>
+<body>
+<div id="description" style="width: 600px">
+
+<h2>Getting started</h2>
+
+<h3>News</h3>
+
+19. November 2009
+<p>With version 0.4.2 we switched back to the mojodna oauth gem, since the bug was finally fixed. We also had to switch to gemcutter.org to host our gems, since github doesn't support gem building and hosting anymore. By doing that we renamed jwagener-oauth-active-resource to oauth-active-resource.</p>
+
+September 2009
+<p>With the soundcloud-ruby-api-wrapper version 0.4.1 we switched from the <a href="http://github.com/mojodna/oauth/tree/master">official (mojodna) oauth gem</a> to <a href="http://github.com/pelle/oauth/tree/master">pelle oauth gem</a> (0.3.6) because of an <a href="http://groups.google.com/group/oauth-ruby/browse_thread/thread/a7f8cb6b5eae2023">everlasting,unfixed bug</a> in the official gem.</p>
+
+<h3>Required Gems</h3>
+
+<ul>
+<li>activeresource gem</li>
+<li>activesupport gem</li>
+<li>multipart gem</li>
+<li>oauth gem (&gt;= 0.3.6)</li>
+<li><a href="http://github.com/jwagener/oauth-active-resource">oauth-active-resource</a> gem</li>
+</ul>
+
+<h3>Installation</h3>
+First install all the missing required gems. To install the oauth-active-resource gem you can use:
+
+<pre>$ sudo gem install oauth-active-resource -s http://gemcutter.org</pre>
+
+Then install the soundcloud api wrapper gem:
+
+<pre>$ sudo gem install soundcloud-ruby-api-wrapper -s http://gemcutter.org</pre>
+
+<h3>Setup OAuth things</h3>
+
+Look at <a href="http://wiki.github.com/soundcloud/api/oauth-example">http://wiki.github.com/soundcloud/api/oauth-example</a> to find out, how you setup your OAuth things.
+
+<h3>First steps</h3>
+
+Let's start with a simple app. It will find and display the 10 hottest tracks of alltime. You don't need any OAuth authentication to do this.
+
+<pre>
+require 'rubygems'
+gem 'soundcloud-ruby-api-wrapper'
+require 'soundcloud'
+
+# Create an anonymous soundcloud client
+# if you prefer to work with sandbox-soundcloud.com, replace this with:
+# sc_client = Soundcloud.register({:site => "http://api.sandbox-soundcloud.com"})
+sc_client = Soundcloud.register
+
+# Find the 10 hottest tracks
+hot_tracks = sc_client.Track.find(:all,:params => {:order => 'hotness', :limit => 10})
+
+# and display their titles
+p '==the 10 hottest tracks=='
+hot_tracks.each do |track|
+  p track.title
+end
+</pre>
+
+To test authentication you can use this small app, which will dispay the name of the logged in user.
+
+<pre>
+require 'rubygems'
+gem 'soundcloud-ruby-api-wrapper'
+require 'soundcloud'
+
+gem 'oauth'
+require 'oauth'
+
+
+# Create a Soundcloud OAuth consumer token object
+sc_consumer = Soundcloud.consumer('YOUR_APPLICATION_CONSUMER_TOKEN','YOUR_APPLICATION_CONSUMER_SECRET')
+
+# Create an OAuth access token object
+access_token = OAuth::AccessToken.new(sc_consumer, 'YOUR_OAUTH_ACCESS_TOKEN', 'YOUR_OAUTH_ACCESS_SECRET')
+
+# Create an authenticated Soundcloud client, based on the access token
+sc_client = Soundcloud.register({:access_token => access_token})
+
+# Get the logged in user 
+my_user = sc_client.User.find_me
+
+# Display his full name
+p "Hello, my name is #{my_user.full_name}"
+
+</pre>
+
+Find more examples in these pages: [[Model Events]], [[Model Users]], [[Model Tracks]], [[Model Playlists]], [[Model Comments]].
+
+
+<h2>Sub-resources</h2>
+
+The Soundcloud API provides 3 different types of sub-resources:
+<h3>Nested sub-resources</h3>
+
+These are directly embedded in the resource. For example a playlist has a track array.
+  
+  <pre>playlist.tracks</pre>
+  
+When saving the original resource, the nested array will be saved as well.
+
+<pre>playlist.tracks &lt;&lt; some_track
+playlist.save
+</pre>
+  
+<h3>Separate sub-resources</h3>
+
+These are separated from the original resource.
+Example:
+A Track has the path "/tracks/[TRACK ID]"
+This track has a collection of users, which have access to this track, called permissions.
+These can be accessed via the path "/tracks/[TRACK ID]/permission".
+  
+In ruby they are accessed like nested resources:
+  
+  <pre>playlist.permissions</pre>
+  
+But have to be saved explicitly:
+<pre>
+playlist.permissions &lt;&lt; some_user
+playlist.permissions.save
+playlist.save</pre>
+
+A lot of these collections are partials, that means Soundcloud API will not return more than 50 items per request.
+For example the user famous_dj has 120 fans/followers. famous_dj.fans will only return 50 fans.
+To get all fans you have to do something like this:
+<pre>
+fans = []
+limit = 50
+begin 
+  some_fans = famous_dj.fans({:offset => fans.length, :limit => limit})
+  fans += some_fans
+end while some_fans.length >= limit
+</pre>
+
+The array fans now contains all fans/followers of famous_dj.
+
+
+<h3>'Single changeable' separate sub-resources</h3>
+
+Some separate collections can't be saved in a bulk request. Instead each item has to be added or removed explicitly.
+For now this only affects the contacts (followees) and favorites of a user.
+  
+To add a track to the logged-in users favorites:
+  
+  <pre>track.add_favorite!</pre>
+  
+Remove:
+  
+  <pre>track.remove_favorite!</pre>
+  
+Check:
+  
+  <pre>track.is_favorite? => true or false</pre>
+  
+The same works with the contacts of the logged-in user:
+
+<pre>another_user.add_contact!
+another_user.remove_contact!
+another_user.is_contact? => true or false
+</pre>
+  
+You can also check if another users follows some user or has a specific favorite:
+
+<pre>
+user.has_contact?(some_user) => true of false 
+user.has_favorite?(some_track) => true or false</pre>
+
+
+</div></body></html>
