@@ -29,14 +29,14 @@
 
 %% Set a name, to be used on the LAN/etc:
 
-%%{name, "Captain Kirk"}.
+%%{name, "Commander mxcl"}.
 
 %% List of scripts to be started (resolver scripts)
 %% You need quotes. You need a trailing comma, EXCEPT the last one in the list!
 
 {scripts,[
-    %"/path/to/a/resolver/script1.py",
-    %"/path/to/a/resolver/script2.rb"
+    %"contrib/echonest/echonest-resolver.py",
+    %"contrib/mp3tunes/mp3tunes-resolver.py"
 ]}.
  
 %% Settings for the Playdar webserver.
@@ -65,7 +65,8 @@
 
 {modules_blacklist, [
     "playdar-tcp",
-    "audioscrobbler"
+    "audioscrobbler",
+    "aolmusic"
 ]}.
 
 %% Set to true for log output listing query results with scoring information
