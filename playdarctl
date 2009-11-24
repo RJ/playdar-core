@@ -23,7 +23,7 @@ log_end_msg ()
 fi
 
 ORIGDIR=${CWD}
-cd `dirname $0`
+cd `dirname "$0"`
 
 ERL=erl
 ERL_OPTS="+K true +P 1000000"
