@@ -27,7 +27,6 @@ cd `dirname "$0"`
 
 ERL=erl
 ERL_OPTS="+K true +P 1000000"
-EBIN=./ebin/
 PLAYDAR_LOG_DIR=.
 
 ctl ()
@@ -36,7 +35,7 @@ ctl ()
     $ERL $ERL_OPTS \
         -sname "${SNAME}" \
         -noinput \
-        -pa "${EBIN}" \
+        -pa ebin \
         -s playdar_ctl \
         -extra playdar@localhost \
         "$@"
