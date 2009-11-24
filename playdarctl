@@ -87,6 +87,12 @@ start ()
     exit 1
 }
 
+startexec ()
+{
+    exec $ERL $ERL_OPTS $PLAYDAR_OPTS \
+         -noinput 1> $PLAYDAR_LOG_DIR/playdar.log 2> $PLAYDAR_LOG_DIR/playdar.err
+}
+
 stop ()
 {
     log_daemon_msg "Stopping Playdar Daemon"
@@ -105,6 +111,7 @@ stop ()
 case "$@" in
     'start') start;;
     'start-debug') startdebug;;
+    'start-exec') startexec;;
     'stop')  stop;;
     *) ctl "$@";;
 esac
