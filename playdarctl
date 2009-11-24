@@ -27,6 +27,7 @@ cd `dirname "$0"`
 
 ERL=erl
 ERL_OPTS="+K true +P 1000000"
+PLAYDAR_OPTS="-s playdar -sname playdar@localhost -pa ebin -boot start_sasl"
 PLAYDAR_LOG_DIR=.
 
 ctl ()
@@ -59,12 +60,7 @@ startdebug ()
     echo "NB: to safely exit the erlang shell, type:  q().<enter>"
     echo "Press enter to continue.."
     read foo
-    $ERL $ERL_OPTS \
-        -sname playdar@localhost \
-        -pa ebin \
-        -boot start_sasl \
-        -s reloader \
-        -s playdar 
+    $ERL $ERL_OPTS -s reloader $PLAYDAR_OPTS
     return $?
 }
 
@@ -72,11 +68,8 @@ start ()
 {
     log_daemon_msg "Starting Playdar Daemon"
     nohup $ERL $ERL_OPTS \
-        -sname playdar@localhost \
         -detatched -noinput -noshell \
-        -pa ebin \
-        -boot start_sasl \
-        -s playdar 1> $PLAYDAR_LOG_DIR/playdar.log 2> $PLAYDAR_LOG_DIR/playdar.err &
+        $PLAYDAR_OPTS 1> $PLAYDAR_LOG_DIR/playdar.log 2> $PLAYDAR_LOG_DIR/playdar.err &
     # now to check if it spawned ok (within 5 secs):
     i=5
     while [ $i -gt 0 ]
