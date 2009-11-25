@@ -3,6 +3,8 @@
 -include("playdar.hrl").
 -include_lib("kernel/include/file.hrl").
 
+-define(HTTP_HEADERS_TIMEOUT, 5000).
+
 -export([start_link/3, reader_protocols/0]).
 
 start_link(A, Pid, Ref) ->
@@ -40,7 +42,7 @@ run({struct, A}, Pid, Ref) ->
             ?LOG(warning, "HTTP req failed for ~s",[Url]),
             Pid ! {Ref, error, Reason}
             
-    after 10000 ->
+    after ?HTTP_HEADERS_TIMEOUT ->
             ?LOG(warning, "HTTP timeout on receiving headers for ~s",[Url]),
             Pid ! {Ref, error, timeout}
     end.
