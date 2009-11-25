@@ -27,7 +27,8 @@ cd `dirname "$0"`
 
 ERL=erl
 ERL_OPTS="+K true +P 1000000"
-PLAYDAR_OPTS="-s playdar -sname playdar@localhost -pa ebin -boot start_sasl"
+EBIN_DIR="ebin"
+PLAYDAR_OPTS="-s playdar -sname playdar@localhost -pa ${EBIN_DIR} -boot start_sasl"
 PLAYDAR_LOG_DIR=.
 
 ctl ()
@@ -61,6 +62,17 @@ startdebug ()
     echo "Press enter to continue.."
     read foo
     $ERL $ERL_OPTS -s reloader $PLAYDAR_OPTS
+    return $?
+}
+
+debug()
+{
+    echo "This will start an interactive erlang shell connected to the running instance."
+    echo "If you type the wrong thing, you will crash Playdar."
+    echo "Press ^C^C to exit safely once connected."
+    echo "Enter to continue, ^C to abort."
+    read foo
+    $ERL -hidden -sname debug@localhost -pa ${EBIN_DIR} -remsh playdar@localhost
     return $?
 }
 
@@ -112,6 +124,7 @@ case "$@" in
     'start') start;;
     'start-debug') startdebug;;
     'start-exec') startexec;;
+    'debug') debug;;
     'stop')  stop;;
     *) ctl "$@";;
 esac

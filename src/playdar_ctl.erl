@@ -48,6 +48,7 @@ usage() ->
     io:format("~nCommands:~n"),
 	io:format("  start         Start Playdar as background daemon~n"),
 	io:format("  start-debug   Start Playdar as interactive foreground process~n"),
+    io:format("  debug         Start interactive erlang shell on running instance~n"),
 	io:format("  stop          Stop a running instance~n~n"),
     lists:foreach(fun({Cmd, Desc, _Fun})->
                           Pad = string:chars($\s, 14 - length(Cmd)),
