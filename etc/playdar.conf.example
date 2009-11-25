@@ -75,8 +75,8 @@
 
 %% Put library/scanner database files in current directory (default)
 
-% {{library, dbdir}, "."}.
+{{library, dbdir}, "."}.
 
 %% Put auth database file in current directory (default) 
 
-% {authdbdir, "."}.
+{authdbdir, "."}.
