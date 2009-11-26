@@ -56,10 +56,13 @@ init([]) ->
                                 port=Port
                             }};
                 Errr ->
-                    ?LOG(error, "Failed to initialise LAN resolver. Couldn't listen on 0.0.0.0: ~p", [Errr])
+                    ?LOG(error, "Failed to initialise LAN resolver. "
+                                "Couldn't listen on 0.0.0.0: ~p", [Errr]),
+                    ignore
             end;
         Err ->
-            ?LOG(error, "Failed to initialise LAN resolver. Probably a network/multicast issue: ~p",[Err]),
+            ?LOG(error, "Failed to initialise LAN resolver. "
+                        "Probably a network/multicast issue: ~p", [Err]),
             ignore
     end.
 
