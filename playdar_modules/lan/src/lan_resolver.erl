@@ -40,19 +40,24 @@ init([]) ->
     Port = ?CONFVAL({lan,port},?PORT),
     BC = ?CONFVAL({lan,broadcast},?BROADCAST),
     % Broadcast socket:
-    {ok, Sock} = gen_udp:open(Port, [binary, 
-                                     {reuseaddr, true},{ip, BC}, 
-                                     {add_membership, {BC, LAddr}}]),
-    % Normal socket, which direct replies are sent to:
-    {ok, SockP}= gen_udp:open(Port, [binary, 
-                                     {reuseaddr, true}, {ip, {0,0,0,0}}]),
-    playdar_resolver:add_resolver(?MODULE, self()),
-    {ok, #state{sock=Sock, 
-                sockp=SockP,
-                seenqids=SQ, 
-                broadcast=BC,
-                port=Port
-               }}.
+    case gen_udp:open(Port, [binary, 
+                            {reuseaddr, true},{ip, BC}, 
+                            {add_membership, {BC, LAddr}}]) of
+        {ok, Sock} ->
+            % Normal socket, which direct replies are sent to:
+            {ok, SockP}= gen_udp:open(Port, [binary, 
+                                            {reuseaddr, true}, {ip, {0,0,0,0}}]),
+            playdar_resolver:add_resolver(?MODULE, self()),
+            {ok, #state{sock=Sock, 
+                        sockp=SockP,
+                        seenqids=SQ, 
+                        broadcast=BC,
+                        port=Port
+                    }};
+        Err ->
+            ?LOG(error, "Failed to initialise LAN resolver. Probably a network/multicast issue: ~p",[Err]),
+            ignore
+    end.
 
 handle_call(_Request, _From, State) ->
     Reply = ok,
