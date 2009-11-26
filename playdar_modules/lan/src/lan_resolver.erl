@@ -45,15 +45,19 @@ init([]) ->
                             {add_membership, {BC, LAddr}}]) of
         {ok, Sock} ->
             % Normal socket, which direct replies are sent to:
-            {ok, SockP}= gen_udp:open(Port, [binary, 
-                                            {reuseaddr, true}, {ip, {0,0,0,0}}]),
-            playdar_resolver:add_resolver(?MODULE, self()),
-            {ok, #state{sock=Sock, 
-                        sockp=SockP,
-                        seenqids=SQ, 
-                        broadcast=BC,
-                        port=Port
-                    }};
+            case gen_udp:open(Port, [binary, 
+                                     {reuseaddr, true}, {ip, {0,0,0,0}}]) of
+                {ok, SockP} ->
+                    playdar_resolver:add_resolver(?MODULE, self()),
+                    {ok, #state{sock=Sock, 
+                                sockp=SockP,
+                                seenqids=SQ, 
+                                broadcast=BC,
+                                port=Port
+                            }};
+                Errr ->
+                    ?LOG(error, "Failed to initialise LAN resolver. Couldn't listen on 0.0.0.0: ~p", [Errr])
+            end;
         Err ->
             ?LOG(error, "Failed to initialise LAN resolver. Probably a network/multicast issue: ~p",[Err]),
             ignore
