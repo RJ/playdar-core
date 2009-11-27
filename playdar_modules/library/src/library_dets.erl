@@ -34,7 +34,10 @@ stats(Pid)              -> gen_server:call(Pid, stats).
 
 dump_library(Pid)       -> gen_server:call(Pid, dump_library, 60000).
 
-music_dirs()            -> [].
+music_dirs(Fdb)         -> case dets:lookup(Fdb, music_dirs) of
+                               [] -> [];
+                               [{music_dirs, Dirs}] -> Dirs
+                           end.
 
 %%
 
@@ -57,7 +60,7 @@ init([]) ->
     % start the scanner (kind of a hack, but deadlock if we do it in init here):
     self() ! start_scanner,        
     playdar_resolver:add_resolver(?MODULE, self()),
-    FswatcherPid = fswatcher_driver:start_link(self(), music_dirs()),
+    FswatcherPid = fswatcher_driver:start_link(self(), music_dirs(Fdb)),
     {ok, #state{scanner=undefined, ndb=Ndb, fdb=Fdb, customname="", fswpid=FswatcherPid}}.
 
 handle_cast(sync, State) -> 
@@ -146,6 +149,7 @@ handle_call({add_file, File, Mtime, Size, Tags}, _From, State) when is_list(Tags
     end;
 
 handle_call({scan, Dir}, From, State) ->
+    dets:insert(State#state.fdb, {music_dirs, music_dirs(State#state.fdb)++[Dir]}),
     fswatcher_driver:watch(Dir),
 
     spawn(fun()->
