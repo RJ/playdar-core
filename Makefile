@@ -38,7 +38,7 @@ vpath %.erl $(wildcard $(DIRS))
 ebin/script_resolver.beam: ebin/playdar_resolver.beam
 ebin/playdar.app: src/playdar.app
 
-ESCRIPT='main(_) -> io:format("default_config()->~p.~n",[file:consult("etc/playdar.conf.example")]),halt(0).'
+ESCRIPT="\nmain(_)\n"'-> io:format("default_config()->~p.~n",[file:consult("etc/playdar.conf.example")]),halt(0).'
 .default_config.hrl.escript:
 	echo $(ESCRIPT) > $@
 src/playdar_config.erl: include/default_config.hrl
