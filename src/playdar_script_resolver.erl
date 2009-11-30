@@ -23,7 +23,7 @@ localonly(Pid)			-> gen_server:call(Pid, localonly).
 %%
 
 init([Exe]) ->
-    Port = open_port({spawn, Exe}, [binary, {packet, 4}, use_stdio]),
+    Port = open_port({spawn_executable, Exe}, [binary, {packet, 4}, use_stdio]),
     DefName = <<"undefined">>,
     {ok, #state{port=Port,exe=Exe,name=DefName,tt=50,weight=1,localonly=true}}.
 
