@@ -19,10 +19,15 @@
 
 
 % Peers to connect to on startup.
+% third param is bool: share our content with this node (overriding default)
 
 {peers,[
 %    {"joe.example.com", 60211},
-%    {"mike.example.com", 9999}
+%    {"mike.example.com", 9999},
+%    {"i-wish-this-existed.magnatune.com", 60211, false},
+%    {"i-wish-this-existed.archive.org", 60211, false},
+%    {"i-wish-this-existed.jamendo.org", 60211, false},
+%    {"my-home-pc.example.com", 60211, true}
 ]}.
 
 

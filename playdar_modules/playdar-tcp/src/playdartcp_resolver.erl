@@ -37,8 +37,15 @@ init([]) ->
     {ok,_} = playdartcp_router:start_link(?CONFVAL({playdartcp,port},60211)),
     % Connect to any peers listed in the config file
 	% the connect call will timeout+crash if connection fails
-    lists:foreach(fun({Ip,Port})->
-						  spawn(fun()->playdartcp_router:connect(Ip,Port)end)
+    lists:foreach(fun(Tup)->
+                          case Tup of
+                              {Ip,Port} ->
+                                    spawn(fun()->playdartcp_router:connect(Ip,Port)end);
+                              {Ip,Port,Share} ->
+                                    spawn(fun()->playdartcp_router:connect(Ip,Port,Share)end);
+                              _ ->
+                                    ?LOG(error, "Invalid peer tuple: ~p", [Tup])
+                          end
 				  end, ?CONFVAL({playdartcp,peers},[])),
     % Register us as a playdar resolver
     playdar_resolver:add_resolver(?MODULE, self()),
