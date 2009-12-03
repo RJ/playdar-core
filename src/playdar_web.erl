@@ -33,6 +33,7 @@ loop(Req, DocRoot) ->
         "127.0.0.1"         -> loop1(Req, DocRoot);
         "::1"               -> loop1(Req, DocRoot);
         "0:0:0:0:0:0:0:1"   -> loop1(Req, DocRoot);
+        "::FFFF:127.0.0.1"  -> loop1(Req, DocRoot); % this one, i think :)
         _ ->
             case Req:get(path) of
                 "/sid/" ++ _ -> 
