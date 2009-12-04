@@ -18,8 +18,14 @@
 *.la
 *.conf
 /playdar_modules/library/priv/taglib_driver/taglib_json_reader
+/playdar_modules/library/priv/taglib_driver/scanner_visual_studio_sln/Debug/
+/playdar_modules/library/priv/taglib_driver/scanner_visual_studio_sln/Release/
+/playdar_modules/library/priv/taglib_driver/scanner_visual_studio_sln/scanner_visual_studio_sln/Debug/
+/playdar_modules/library/priv/taglib_driver/scanner_visual_studio_sln/scanner_visual_studio_sln/Release/
 erl_crash.dump
 *.ncb
 *.suo
 *.vcproj.*.user
 *.db
+_ReSharper.*
+*.resharper.user
