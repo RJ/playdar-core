@@ -8,6 +8,8 @@
 /auth.db
 /library.db
 /library_index.db
+/playdar.log
+/playdar.err
 /deps/erlydtl/src/erlydtl/erlydtl_parser.erl
 /.default_config.hrl.escript
 /include/default_config.hrl
