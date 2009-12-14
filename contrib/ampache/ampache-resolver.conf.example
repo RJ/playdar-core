@@ -1,0 +1,10 @@
+<?php
+
+$db = array(
+  'host' => 'localhost', // ampache database host
+  'db' => 'ampache', // ampache database
+  'user' => 'ampache_db_user', // ampache database user
+  'password' => 'ampache_db_password', // ampache database password
+);
+
+
