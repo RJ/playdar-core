@@ -1,0 +1,12 @@
+<?php
+
+// get these keys from https://aws-portal.amazon.com/gp/aws/developer/account/index.html?ie=UTF8&action=access-key
+
+$conf = array(
+  'key' => '', // Amazon AWS Access Key - required
+  'secret' => '', // // Amazon AWS Secret Access Key - required
+  //'tag' => 'amazonbrowser-20', Amazon Associates tag, for referrals
+  //'host' => 'ecs.amazon.com', // UK = 'ecs.amazon.co.uk'
+);
+
+
