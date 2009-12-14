@@ -59,7 +59,7 @@ class AmpacheResolver extends PlaydarResolver {
     }
 }
 
-include dirname(__FILE__) . '/ampache-resolver.conf';
+require dirname(__FILE__) . '/ampache-resolver.conf';
 $resolver = new AmpacheResolver($db, $prefix);
 
 //exit(print_r($resolver->resolve((object) array('artist' => 'Yeah Yeah Yeahs', 'track' => 'Heads Will Roll'))));
