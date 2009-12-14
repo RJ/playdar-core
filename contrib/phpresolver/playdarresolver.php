@@ -91,6 +91,7 @@ abstract class PlaydarResolver
             'name' => $this->name,
             'targettime' => $this->targetTime,
             'weight' => $this->weight,
+            'localonly' => isset($this->localonly) ? $this->localonly : TRUE,
         );
         return $settings;
     }
