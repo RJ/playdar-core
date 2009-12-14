@@ -42,13 +42,14 @@ class AmazonResolver extends PlaydarResolver {
         'AssociateTag' => $this->tag,
         'Operation' => 'ItemSearch',
         'SearchIndex' => 'MP3Downloads',
-        'ResponseGroup' => 'ItemAttributes',
-        'Keywords' => $query
+        'ResponseGroup' => 'ItemAttributes,Images',
+        'Keywords' => $query,
         );
 
       $params['Signature'] = $this->sign($params);     
       $xml = simplexml_load_file('http://' . $this->host . $this->path . '?' . http_build_query($params));
-
+      //print_r($xml);
+      
       if (!is_object($xml) || (string) $xml->Items->Request->IsValid != 'True')
         return array();
 
@@ -58,7 +59,7 @@ class AmazonResolver extends PlaydarResolver {
           $asin = (string) $item->ASIN;
           $attr = $item->ItemAttributes;
           
-          $items[] = array(
+          $meta = array(
             'score' => 1,
             'source' => 'Amazon',
             'artist' => (string) $attr->Creator,
@@ -66,7 +67,17 @@ class AmazonResolver extends PlaydarResolver {
             'duration' => 30, // (string) $attr->RunningTime,
             'trackno' => (string) $attr->TrackSequence,
             'url' => 'http://www.amazon.com/gp/dmusic/get_sample_url.html?ASIN=' . $asin,
+            'info' => (string) $item->DetailPageURL,
             );
+            
+          foreach (array('LargeImage', 'MediumImage', 'SmallImage') as $image){
+            if (isset($item->{$image})){
+              $meta['image'] = (string) $item->{$image}->URL;
+              break;
+            }
+          }
+            
+          $items[] = $meta;
         }
       }   
       return $items;
