@@ -103,7 +103,7 @@ loop1(Req, DocRoot) ->
 
                         _  ->
                             Resp = mochijson2:encode({struct, [{<<"formtoken">>,list_to_binary(Ftok)}]}),
-                            Req:ok({"text/javascript; charset=utf-8",[],Resp})
+                            Req:ok({"appplication/json; charset=utf-8",[],Resp})
                     end
             end;
             
@@ -134,7 +134,7 @@ loop1(Req, DocRoot) ->
                                     render(Req, DocRoot ++ "/auth.na.html", Vars);
                                 _ ->
                                     Resp = mochijson2:encode({struct, [{<<"authtoken">>,AuthCode}]}),
-                                    Req:ok({"text/javascript; charset=utf-8",[],Resp})
+                                    Req:ok({"appplication/json; charset=utf-8",[],Resp})
                             end;
 
                         RecUrl ->

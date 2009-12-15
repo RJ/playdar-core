@@ -180,10 +180,10 @@ respond(Req, R) ->
     Qs = Req:parse_qs(),
     case proplists:get_value("jsonp", Qs) of
         undefined ->
-            Req:ok({"text/javascript; charset=utf-8", [], mochijson2:encode(R)});
+            Req:ok({"appplication/json; charset=utf-8", [], mochijson2:encode(R)});
         F ->
             Req:ok({"text/javascript; charset=utf-8", [], 
-                    F++"("++mochijson2:encode(R)++");\n"})
+                    F++"("++mochijson2:encode(R)++")\n"})
     end.
         
 
