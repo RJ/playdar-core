@@ -29,7 +29,7 @@ init([LibPid]) ->
 
 handle_call({scan_dir, Dir}, From, State) ->
     spawn(fun()-> 
-                  Resp = (catch scan(filelib:wildcard(Dir ++ "/*"), State#state.self)),
+                  Resp = (catch scan(filelib:wildcard(re:replace(re:replace(Dir,"\\]","[]]",[{return,list}]),"\\[","[[]",[{return,list}]) ++ "/*"), State#state.self)),
                   library_dets:sync(State#state.libpid),
                   gen_server:reply(From, Resp)
           end),
@@ -91,7 +91,7 @@ scan([], _Pid)     -> ok;
 scan([H|T], Pid)   ->
     ?LOG(info, "Scan(~s)", [H]),
     case filelib:is_dir(H) of
-        true  ->    scan(filelib:wildcard(H ++ "/*"), Pid);
+        true  ->    scan(filelib:wildcard(re:replace(re:replace(H,"\\]","[]]",[{return,list}]),"\\[","[[]",[{return,list}]) ++ "/*"), Pid);
         false ->    
             case ?MODULE:scan_file(Pid, H) of
                 ok-> ok;
