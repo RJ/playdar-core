@@ -219,7 +219,7 @@ stream_body(MaxChunkSize, ChunkFun, FunState, MaxBodyLength) ->
             MaxBodyLength when is_integer(MaxBodyLength), MaxBodyLength < Length ->
                 exit({body_too_large, content_length});
             _ ->
-                stream_unchunked_body(Length, MaxChunkSize, ChunkFun, FunState)
+                stream_unchunked_body(Length, ChunkFun, FunState)
             end;
         Length ->
             exit({length_not_integer, Length})
@@ -454,16 +454,20 @@ stream_chunked_body(MaxChunkSize, Fun, FunState) ->
             stream_chunked_body(MaxChunkSize, Fun, NewState)
     end.
 
-stream_unchunked_body(0, _MaxChunkSize, Fun, FunState) ->
+stream_unchunked_body(0, Fun, FunState) ->
     Fun({0, <<>>}, FunState);
-stream_unchunked_body(Length, MaxChunkSize, Fun, FunState) when Length > MaxChunkSize ->
-    Bin = recv(MaxChunkSize),
-    NewState = Fun({MaxChunkSize, Bin}, FunState),
-    stream_unchunked_body(Length - MaxChunkSize, MaxChunkSize, Fun, NewState);
-stream_unchunked_body(Length, MaxChunkSize, Fun, FunState) ->
-    Bin = recv(Length),
-    NewState = Fun({Length, Bin}, FunState),
-    stream_unchunked_body(0, MaxChunkSize, Fun, NewState).
+stream_unchunked_body(Length, Fun, FunState) when Length > 0 ->
+    Bin = recv(0),
+    BinSize = byte_size(Bin),
+    if BinSize > Length ->
+        <<OurBody:Length/binary, Extra/binary>> = Bin,
+        gen_tcp:unrecv(Socket, Extra),
+        NewState = Fun({Length, OurBody}, FunState),
+        stream_unchunked_body(0, Fun, NewState);
+    true ->
+        NewState = Fun({BinSize, Bin}, FunState),
+        stream_unchunked_body(Length - BinSize, Fun, NewState)
+    end.
 
 
 %% @spec read_chunk_length() -> integer()
@@ -676,7 +680,6 @@ range_parts({file, IoDevice}, Ranges) ->
                            end,
                            LocNums, Data),
     {Bodies, Size};
-
 range_parts(Body0, Ranges) ->
     Body = iolist_to_binary(Body0),
     Size = size(Body),
@@ -743,7 +746,6 @@ test_range() ->
     [{none, 20}] = parse_range_request("bytes=-20"),
     io:format(".. ok ~n"),
 
-
     %% invalid, single ranges
     io:format("Testing parse_range_request with invalid ranges~n"),
     io:format("1"),
@@ -771,7 +773,7 @@ test_range() ->
     io:format(".. ok~n"),
 
     Body = <<"012345678901234567890123456789012345678901234567890123456789">>,
-    BodySize = size(Body), %% 60
+    BodySize = byte_size(Body), %% 60
     BodySize = 60,
 
     %% these values assume BodySize =:= 60

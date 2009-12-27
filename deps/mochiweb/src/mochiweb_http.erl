@@ -27,11 +27,12 @@ set_defaults(Defaults, PropList) ->
     lists:foldl(fun set_default/2, PropList, Defaults).
 
 parse_options(Options) ->
-    {loop, HttpLoop} = proplists:lookup(loop, Options),
+    WwwLoop = proplists:get_value(loop, Options),
+    WSLoop  = proplists:get_value(wsloop, Options),
     Loop = fun (S) ->
-                   ?MODULE:loop(S, HttpLoop)
+                   ?MODULE:loop(S, {WwwLoop,WSLoop})
            end,
-    Options1 = [{loop, Loop} | proplists:delete(loop, Options)],
+    Options1 = [{loop, Loop}, {wsloop, Loop} | proplists:delete(loop, proplists:delete(wsloop, Options))],
     set_defaults(?DEFAULTS, Options1).
 
 stop() ->
@@ -124,16 +125,25 @@ headers(Socket, Request, Headers, _Body, ?MAX_HEADERS) ->
     Req:respond({400, [], []}),
     gen_tcp:close(Socket),
     exit(normal);
-headers(Socket, Request, Headers, Body, HeaderCount) ->
+    
+headers(Socket, Request, Headers, {WwwLoop, WSLoop}, HeaderCount) ->
     case gen_tcp:recv(Socket, 0, ?IDLE_TIMEOUT) of
         {ok, http_eoh} ->
-            inet:setopts(Socket, [{packet, raw}]),
-            Req = mochiweb:new_request({Socket, Request,
-                                        lists:reverse(Headers)}),
-            Body(Req),
-            ?MODULE:after_response(Body, Req);
+            {_, {abs_path,Path}, _} = Request,
+	        case websocket_check(Socket, Path, Headers) of
+                true ->  % a websocket request
+            		inet:setopts(Socket, [{packet, raw}]),
+                    WSRequest = websocket_request:new(Socket,Path),
+                    WSLoop(WSRequest);
+	            false -> % normal http request
+		            inet:setopts(Socket, [{packet, raw}]),
+		            Req = mochiweb:new_request({Socket, Request,
+					                           lists:reverse(Headers)}),
+            		WwwLoop(Req),
+            		?MODULE:after_response({WwwLoop, WSLoop}, Req)
+    	    end;
         {ok, {http_header, _, Name, _, Value}} ->
-            headers(Socket, Request, [{Name, Value} | Headers], Body,
+            headers(Socket, Request, [{Name, Value} | Headers], {WwwLoop, WSLoop},
                     1 + HeaderCount);
         _Other ->
             gen_tcp:close(Socket),
@@ -150,3 +160,22 @@ after_response(Body, Req) ->
             Req:cleanup(),
             ?MODULE:loop(Socket, Body)
     end.
+
+websocket_check(Socket,Path,Headers) ->
+    case proplists:get_value('Upgrade',Headers) of
+        "WebSocket" ->
+            websocket_send_handshake(Socket,Path,Headers), 
+            true;
+        _Other ->
+            false
+    end.
+
+websocket_send_handshake(Socket,Path,Headers) ->
+    Origin   = proplists:get_value("Origin",Headers),
+    Location = proplists:get_value('Host',  Headers),
+    Proto = "HTTP/1.1 101 Web Socket Protocol Handshake\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\n",
+    Resp = Proto ++
+    "WebSocket-Origin: " ++ Origin ++ "\r\n" ++
+    "WebSocket-Location: ws://" ++ Location ++ Path ++ "\r\n\r\n",
+    gen_tcp:send(Socket, Resp).
+
