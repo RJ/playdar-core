@@ -40,7 +40,7 @@ ebin/playdar.app: src/playdar.app
 
 ESCRIPT="\nmain(_)\n"'-> io:format("default_config()->~p.~n",[file:consult("etc/playdar.conf.example")]),halt(0).'
 .default_config.hrl.escript:
-	echo $(ESCRIPT) > $@
+	printf $(ESCRIPT) > $@
 src/playdar_config.erl: include/default_config.hrl
 include/default_config.hrl: .default_config.hrl.escript
 	escript $< > $@
