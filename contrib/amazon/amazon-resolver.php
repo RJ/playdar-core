@@ -7,7 +7,7 @@ class AmazonResolver extends PlaydarResolver {
     protected $name = 'Amazon MP3 Preview resolver';
     protected $targetTime = 500;
     protected $weight = 20;
-    protected $localonly = FALSE;
+    protected $localonly = TRUE;
   
     private $key;
     private $secret;
@@ -63,7 +63,7 @@ class AmazonResolver extends PlaydarResolver {
             'score' => 1,
             'source' => 'Amazon',
             'artist' => (string) $attr->Creator,
-            'track' => (string) $attr->Title,
+            'track' => (string) $attr->Title . ' [preview]',
             'duration' => 30, // (string) $attr->RunningTime,
             'trackno' => (string) $attr->TrackSequence,
             'url' => 'http://www.amazon.com/gp/dmusic/get_sample_url.html?ASIN=' . $asin,
