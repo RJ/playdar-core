@@ -4,15 +4,16 @@
 %% @doc Web server for playdar.
 
 -module(playdar_web).
--export([start/1, stop/0, loop/2, render/3]).
+-export([start/1, stop/0, loop/2, wsloop/1, render/3]).
 -include("playdar.hrl").
 
 %% External API
 
 start(Options) ->
     {DocRoot, Options1} = get_option(docroot, Options),
-    Loop = fun(Req) -> ?MODULE:loop(Req, DocRoot) end,
-    Opts = [ {loop, Loop}, {name, ?MODULE} | Options1 ],
+    Loop   = fun(Req) -> ?MODULE:loop(Req, DocRoot) end,
+    WSLoop = fun(Req) -> ?MODULE:wsloop(Req) end,
+    Opts   = [ {loop, Loop}, {wsloop, WSLoop}, {name, ?MODULE} | Options1 ],
     mochiweb_http:start(Opts).
                 
 
@@ -213,6 +214,19 @@ loop1(Req, DocRoot) ->
                     Handler(Req, DocRoot)
             end
     end.
+
+wsloop(WSReq) ->
+    %["/"++Path0] = WSReq:get(path),
+    %Path = "/ws:"++Path0,
+    Path = "/ws:api",
+    case playdar_http_registry:get_handler(Path) of
+        undefined ->
+            ?LOG(warning, "No ws: handler for ~s", [Path]),
+            fail; % closes socket, since we don't tailcall TODO how to send error code, ws: style?     
+        Handler ->
+            Handler(WSReq, undefined)
+    end.
+    
 
 
 %% Internal API

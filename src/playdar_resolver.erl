@@ -12,10 +12,11 @@
 -define(MIN_SCORE, 0.6).
 
 %% API
--export([start_link/0, dispatch/1, dispatch/2, sid2qid/1, 
+-export([start_link/0, dispatch/1, dispatch/2, dispatch/3, sid2qid/1, 
          resolvers/0, register_sid/2, add_resolver/2, resolver_pid/1,
          queries/0, add_results/2, results/1, result/1,
-		 solved/1, register_query_observer/2, gc/1]).
+		 solved/1, register_query_observer/2, gc/1,
+         register_comet/2, get_comet_pid/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -40,8 +41,12 @@
 start_link()        -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 % dispatch a Query, returns the query pid
-dispatch(Qry)           -> dispatch(Qry, []).
-dispatch(Qry, Callbacks)-> gen_server:call(?MODULE, {dispatch, Qry, Callbacks}).
+dispatch(Qry) -> 
+    dispatch(Qry, [], []).
+dispatch(Qry, Callbacks) -> 
+    gen_server:call(?MODULE, {dispatch, Qry, Callbacks, []}).
+dispatch(Qry, Callbacks, Observers) -> 
+    gen_server:call(?MODULE, {dispatch, Qry, Callbacks, Observers}).
 
 % associate a source id with a query id:
 register_sid(Sid, Qid)  -> gen_server:cast(?MODULE, {register_sid, Sid, Qid}).
@@ -82,6 +87,9 @@ solved(Qid) -> gen_server:call(?MODULE, {solved, Qid}).
 register_query_observer(Qid, Pid) -> 
     gen_server:call(?MODULE, {register_query_observer, Qid, Pid}).
 
+register_comet(Cid, Pid) -> gen_server:cast(?MODULE, {register_comet, Cid, Pid}).
+get_comet_pid(Cid) -> gen_server:call(?MODULE, {get_comet_pid, Cid}).
+
 gc(Age) -> gen_server:cast(?MODULE, {gc, Age}).
 
 %% gen_server callbacks
@@ -114,6 +122,9 @@ init([]) ->
                     sources=Tid2, 
                     resolvers=[]}}.
 
+handle_call({get_comet_pid, Cid}, _From, State) ->
+    {reply, get({comet, Cid}), State};
+
 handle_call(queries, _From, State) ->
     {reply, [Qid||{Qid,_RQ} <- ets:tab2list(State#state.queries)], State};
     
@@ -144,7 +155,7 @@ handle_call({sid2qid, Sid}, _From, State) ->
             {reply, undefined, State}
     end;
     
-handle_call({dispatch, Qry, Callbacks}, _From, State) ->
+handle_call({dispatch, Qry, Callbacks, Observers}, _From, State) when is_list(Callbacks), is_list(Observers) ->
     Qid = Qry#qry.qid,
 	% First of all, do nothing if a query with this Qid already exists:
 	case ets:lookup(State#state.queries, Qid) of
@@ -155,7 +166,7 @@ handle_call({dispatch, Qry, Callbacks}, _From, State) ->
 			P = start_resolver_pipeline(Qry, State#state.resolvers),
             RQ  = #rq{qry=Qry, solved=false, ctime=erlang:localtime(), 
                       callbacks=Callbacks, results=[], pipelinepid=P,
-                      observers=[]},
+                      observers=Observers},
             ets:insert(State#state.queries, {Qid, RQ}),
 			{reply, Qid, State}
 	end;
@@ -200,6 +211,12 @@ handle_call({register_query_observer, Qid, Pid}, _From, State) ->
 			{reply, undefined, State}
 	end.
 
+
+handle_cast({register_comet, Cid, Pid}, State) ->
+    put({comet, Cid}, Pid),
+    put({comet_pid, Pid}, Cid),
+    link(Pid),
+    {noreply, State};
 
 handle_cast({gc, Age}, State) ->
 	Now = calendar:datetime_to_gregorian_seconds(erlang:localtime()),
@@ -296,7 +313,7 @@ handle_cast({add_results, Qid, Results}, State) ->
                                           lists:foreach(fun(R)->
                                                                 Cb(R)
                                                         end, Results2)
-                                  end, RQ1#rq.callbacks ),
+                                  end, RQ1#rq.callbacks ),                    
                     {noreply, State}
             end;
         [] ->
@@ -305,10 +322,16 @@ handle_cast({add_results, Qid, Results}, State) ->
     end.
 
 handle_info({'EXIT', Pid, _Reason}, State) ->
-    % remove this crashed resolver from our list,
-    % the supervisor will restart it as necessary:
-    R = lists:filter( fun(X)-> X#resolver.pid /= Pid end, State#state.resolvers),
-    {noreply, State#state{resolvers=R}};
+    case erase({comet_pid, Pid}) of
+        undefined ->
+            % remove this crashed resolver from our list,
+            % the supervisor will restart it as necessary:
+            R = lists:filter( fun(X)-> X#resolver.pid /= Pid end, State#state.resolvers),
+            {noreply, State#state{resolvers=R}};
+        Cid ->
+            erase(Cid),
+            {noreply, State}
+    end;    
            
 handle_info(_Info, State) ->
     {noreply, State}.

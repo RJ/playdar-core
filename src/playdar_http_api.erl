@@ -42,7 +42,23 @@ http_req(Req, DocRoot) ->
                         ]},
                     respond(Req, R)
             end;
-
+        
+        % /comet?id=XX pushes results from queries sent with ?comet=XX
+        % doesn't need auth, IDs are opaque.
+        "comet" ->
+            case proplists:get_value("id", Qs) of
+                undefined ->
+                    Req:not_found();
+                Cid ->
+                    playdar_resolver:register_comet(Cid, self()),
+                    Jsonp = proplists:get_value("jsonp", Qs),
+                    %MType = content_type(Jsonp /= undefined),
+                    MType = "multipart/x-mixed-replace",
+                    Response = Req:ok({MType, [], chunked}),
+                    Response:write_chunk("<html><head></head><body>"),
+                    comet_loop(Response, Jsonp, Cid)
+            end;
+            
         _ ->
 			% for all methods other than stat, require auth if jsonp= is used.
 			case Authenticated of
@@ -79,6 +95,15 @@ http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
                     {<<"album">>,  list_to_binary(Album)}, 
                     {<<"track">>,  list_to_binary(Track)}
                 ]},
+            CometPids = case proplists:get_value("comet", Qs) of
+                     undefined -> [];
+                     Cid -> 
+                         case playdar_resolver:get_comet_pid(Cid) of
+                             P when is_pid(P) -> [ P ];
+                             _ -> []
+                         end
+            end,
+                         
 			Q = case proplists:get_value("mimetypes", Qs) of
 					undefined -> Q0;
 					Strlist ->
@@ -87,7 +112,7 @@ http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
 						{struct, [{<<"mimetypes">>, MT} | L]}
 				end,            
 			Qry = #qry{ qid = Qid, obj = Q, local = true },
-            Qid = playdar_resolver:dispatch(Qry),
+            Qid = playdar_resolver:dispatch(Qry, [], CometPids),
             R = {struct,[
                     {"qid", Qid}
                 ]},
@@ -101,12 +126,24 @@ http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
 		% will return all results found so far in those 4 secs, 
         % and return immediately on solved
 		"get_results_long" ->
-            
 			get_results_long_poll(Req, Qs);
          
         _ ->
             Req:not_found()
     end.
+
+comet_loop(Resp, Jsonp, Cid) ->
+    receive
+        {results, Qid, Results} ->
+            R = {struct, [{<<"method">>, <<"results">>},
+                          {<<"qid">>, Qid},
+                          {<<"results">>, Results}]},
+            ?LOG(info, "Writing COMET response for ~s", [Qid]),
+            Body = encode_response( R, Jsonp ),
+            Resp:write_chunk( io_lib:format("<script type=\"text/javascript\">~s</script>~n", 
+                                            [Body]) ),
+            comet_loop(Resp, Jsonp, Cid)
+    end.    
 
 get_results(Req, Qs) ->
     Qid = list_to_binary(proplists:get_value("qid", Qs)),
@@ -178,12 +215,20 @@ long_poll_loop(Qid, Timeleft, Results) ->
 % responds with json
 respond(Req, R) ->
     Qs = Req:parse_qs(),
-    case proplists:get_value("jsonp", Qs) of
+    Jsonp = proplists:get_value("jsonp", Qs),
+    Ctype = content_type( Jsonp /= undefined ),
+    Body  = encode_response(R, Jsonp),
+    Req:ok({Ctype, [], Body}).
+
+content_type(true) -> "text/javascript; charset=utf-8";
+content_type(false)-> "appplication/json; charset=utf-8". 
+    
+encode_response(R, Jsonp) ->
+    case Jsonp of
         undefined ->
-            Req:ok({"appplication/json; charset=utf-8", [], mochijson2:encode(R)});
+            mochijson2:encode(R);
         F ->
-            Req:ok({"text/javascript; charset=utf-8", [], 
-                    F++"("++mochijson2:encode(R)++")\n"})
+            F++"("++mochijson2:encode(R)++");\n"
     end.
         
 

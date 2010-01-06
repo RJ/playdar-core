@@ -370,6 +370,8 @@ guess_mime(File) ->
             "application/octet-stream";
         ".csv" ->
             "text/csv";
+        ".xspf" ->
+            "application/xml";
         _ ->
             "text/plain"
     end.
