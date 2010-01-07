@@ -4,10 +4,11 @@
 %% API
 -export([start_link/1]).
 
-start_link(Port) -> spawn_link(fun()->
-                                {ok, Sock} = gen_tcp:listen(Port, ?TCP_OPTS_SERVER),
-                                do_accept(Sock)
-                               end).
+start_link(Port) -> 
+    spawn_link(fun()->
+                {ok, Sock} = gen_tcp:listen(Port, ?TCP_OPTS_SERVER),
+                do_accept(Sock)
+               end).
     
 do_accept(LSock) ->
     case gen_tcp:accept(LSock) of

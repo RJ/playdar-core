@@ -276,13 +276,15 @@ handle_stream_request(Direction, Ref, Sid, State = #state{inout=out}) ->
                     send ->
                         playdartcp_router:register_transfer({Ref,Sid}, Address), % only send to the correct peer IP
                         ?LOG(info, "Sending {sending} header", []),
-                        gen_tcp:send(Sock, ?T2B({sending, Ref, Sid}));
+                        gen_tcp:send(Sock, ?T2B({sending, Ref, Sid})),
+                        {ok, Pid} = playdartcp_stream:start(Sock, send),
+                        gen_tcp:controlling_process(Sock, Pid);
                     rcv ->
                         ?LOG(info, "Sending {requesting} header", []),
-                        gen_tcp:send(Sock, ?T2B({requesting, Ref, Sid}))
+                        gen_tcp:send(Sock, ?T2B({requesting, Ref, Sid})),
+                        {ok, Pid} = playdartcp_stream:start(Sock, recv),
+                        gen_tcp:controlling_process(Sock, Pid)
                 end,
-                {ok, Pid} = playdartcp_stream:start(Sock),
-                gen_tcp:controlling_process(Sock, Pid),
                 ?LOG(info, "Created stream process for ~s to ~p:~p", [Sid, Address, Port]),
                 ok;      
             {error, timeout} ->

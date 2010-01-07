@@ -2,15 +2,17 @@
 -include("playdar.hrl").
 -include("playdartcp.hrl").
 
--export([start/1]).
+-export([start/1, start/2]).
 
-start(Sock) ->
-    Pid = spawn(fun()-> start_real(Sock) end),
+start(Sock) -> start(Sock, unknown).
+
+start(Sock, Mode) ->
+    Pid = spawn(fun()-> start_real(Sock, Mode) end),
     {ok, Pid}.
 
 % New connection established - the parent that setup this socket outbound 
 % will have sent the first sending/requesting packet to initiate everything.
-start_real(Sock) ->
+start_real(Sock, Mode) ->
     case gen_tcp:recv(Sock, 0, 3000) of
         {ok, Packet} ->
             % get remote Ip address
@@ -21,20 +23,33 @@ start_real(Sock) ->
                     % is this transfer we are about to receive valid?
                     case playdartcp_router:consume_transfer({Ref,Sid}) of
                         Pid when is_pid(Pid) ->
-                            ?LOG(info, "Responding to sending, with requesting", []),
-                            ok = gen_tcp:send(Sock, ?T2B({requesting, Ref, Sid})),
-                            receive_stream(Ref, Sid, Sock, Pid);
+                            case Mode of
+                                recv ->
+                                    ?LOG(info, "receive_stream", []),
+                                    receive_stream(Ref, Sid, Sock, Pid);
+                                unknown ->
+                                    ok = gen_tcp:send(Sock, ?T2B({requesting, Ref, Sid})),
+                                    ?LOG(info, "receive_stream", []),
+                                    receive_stream(Ref, Sid, Sock, Pid)
+                            end;
+                        
                         unknown ->
                             ?LOG(warn, "Invalid transfer key", []),
                             gen_tcp:close(Sock)
                     end;
-                            
+                
                 {requesting, Ref, Sid} ->
                     % is the transfer they are asking for permitted?
                     case playdartcp_router:consume_transfer({Ref,Sid}) of
                         Ip when Ip == RemoteIp -> % should be Ip of client
-                            ok = gen_tcp:send(Sock, ?T2B({sending, Ref, Sid})),
-                            send_stream(Ref, Sid, Sock);
+                            case Mode of 
+                                unknown ->
+                                    ok = gen_tcp:send(Sock, ?T2B({sending, Ref, Sid})),
+                                    send_stream(Ref, Sid, Sock);
+                                send ->
+                                    send_stream(Ref, Sid, Sock)
+                            end;                            
+                            
                         Else ->
                             ?LOG(warn, "Not sending, request invalid Key: ~p, Transfertoken: ~p", [{Ref,Sid}, Else])
                     end;
@@ -75,14 +90,17 @@ receive_stream(Ref, Sid, Sock, Pid) ->
                             Pid ! {Ref, eof},
                             gen_tcp:close(Sock)
                     end;
-                _ ->
-                    ?LOG(info, "Unhandled packet in receive_stream", []),
+                Wtf ->
+                    ?LOG(info, "Unhandled packet in receive_stream: ~p", [Wtf]),
                     error
             end;
         
         {error, closed} -> Pid ! {Ref, eof};
         
-        {error, Err}    -> Pid ! {Ref, error, Err}
+        {error, timeout} ->
+            ?LOG(warn, "Timeout receiving packets", []),
+            Pid ! {Ref, error, timeout}
+        
     end.
             
 
@@ -92,8 +110,10 @@ send_stream(Ref, Sid, Sock) ->
     A = playdar_resolver:result(Sid),
     case playdar_reader_registry:get_streamer(A, self(), Ref) of
         undefined ->
+            ?LOG(warn, "No streamer available, aborting", []),
             Msg = ?T2B({sid_response, Ref, Sid, {error, 5031}}),
-            ok = gen_tcp:send(Sock, Msg),
+            gen_tcp:send(Sock, Msg),
+            gen_tcp:close(Sock),
             ok;
         Sfun ->         
             % we trap exits, so if the streaming fun crashes we can catch it
