@@ -5,7 +5,9 @@
 
 -export([start_link/1, register_connection/3, send_query_response/3, 
 		 connect/2, connect/3, peers/0, bytes/0, broadcast/1, broadcast/2, broadcast/3,
-         seen_qid/1, disconnect/1, sanitize_msg/1]).
+         seen_qid/1, disconnect/1, sanitize_msg/1, 
+         register_transfer/2, consume_transfer/1
+        ]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -33,6 +35,8 @@ broadcast(M, Except, SharersOnly) when is_tuple(M)  -> gen_server:cast(?MODULE, 
 
 seen_qid(Qid) -> gen_server:cast(?MODULE, {seen_qid, Qid}).
 
+register_transfer(Key, Pid) -> gen_server:cast(?MODULE, {register_transfer, Key, Pid}).
+consume_transfer(Key) -> gen_server:call(?MODULE, {consume_transfer, Key}).
 
 %% ====================================================================
 %% Server functions
@@ -67,6 +71,7 @@ handle_call({disconnect, Name}, _From, State) ->
 handle_call({connect, Ip, Port, Share}, _From, State) ->
         case gen_tcp:connect(Ip, Port, ?TCP_OPTS, 10000) of
             {ok, Sock} ->
+                ok = gen_tcp:send(Sock, ?T2B({conntype,control})),
                 {ok, Pid} = playdartcp_conn:start(Sock, out, Share),
                 gen_tcp:controlling_process(Sock, Pid),
                 ?LOG(info, "New outbound connection to ~p:~p pid:~p, sharing:~w", [Ip, Port,Pid,Share]),
@@ -83,6 +88,8 @@ handle_call(peers, _From, State) ->
 handle_call(bytes, _From, State) -> 
     {reply, ets:tab2list(State#state.piddb), State};
 
+handle_call({consume_transfer, Key}, _From, State) -> {reply, erlang:erase(Key), State};    
+    
 handle_call({register_connection, Pid, Name, Sharing = {WeShare, TheyShare}}, _From, State) ->
     % TODO we should probably kick the old conn with this name
     % so ppl can reconnect if their old conn lags out
@@ -102,6 +109,10 @@ handle_call({register_connection, Pid, Name, Sharing = {WeShare, TheyShare}}, _F
 
 
 %%
+
+handle_cast({register_transfer, Key, Pid}, State) -> 
+    erlang:put(Key, Pid),
+    {noreply, State};
 
 handle_cast({seen_qid, Qid}, State) ->
     % TODO may want to use a bloom filter instead of ets here:
