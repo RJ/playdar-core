@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<playlist version="1" xmlns="http://xspf.org/ns/0/">
+ <title>Top Tracks tagged with "metal"</title>
+ <creator>Audioscrobbler</creator>
+ <info>http://www.last.fm/tag/metal</info>
+ <license>http://creativecommons.org/licenses/by-nc-sa/2.0/uk/</license>
+ <trackList>
+  <track>
+    <title>Nothing Else Matters</title>
+    <creator>Metallica</creator>
+    <info>http://www.last.fm/music/Metallica/_/Nothing+Else+Matters</info>
+    <duration>410000</duration>
+  </track>
+  <track>
+    <title>Enter Sandman</title>
+    <creator>Metallica</creator>
+    <info>http://www.last.fm/music/Metallica/_/Enter+Sandman</info>
+    <duration>460000</duration>
+  </track>
+  <track>
+    <title>One</title>
+    <creator>Metallica</creator>
+    <info>http://www.last.fm/music/Metallica/_/One</info>
+    <duration>474000</duration>
+  </track>
+ </trackList>
+</playlist>
