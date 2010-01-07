@@ -25,10 +25,16 @@ fi
 ORIGDIR=${CWD}
 cd `dirname "$0"`
 
+# Erl node name:
+if [ ! "$ENAME" ]
+then
+    ENAME="playdar"
+fi
+
 ERL=erl
 ERL_OPTS="+K true +P 1000000"
 EBIN_DIR="ebin"
-PLAYDAR_OPTS="-s playdar -sname playdar@localhost -pa ${EBIN_DIR} -boot start_sasl"
+PLAYDAR_OPTS="-s playdar -sname ${ENAME}@localhost -pa ${EBIN_DIR} -boot start_sasl"
 PLAYDAR_LOG_DIR=.
 
 ctl ()
@@ -61,6 +67,7 @@ startdebug ()
     echo "NB: to safely exit the erlang shell, type:  q().<enter>"
     echo "Press enter to continue.."
     read foo
+    echo "Launching: $ERL $ERL_OPTS -s reloader $PLAYDAR_OPTS"
     $ERL $ERL_OPTS -s reloader $PLAYDAR_OPTS
     return $?
 }
