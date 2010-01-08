@@ -6,7 +6,8 @@
 -export([start_link/1, register_connection/3, send_query_response/3, 
 		 connect/2, connect/3, peers/0, bytes/0, broadcast/1, broadcast/2, broadcast/3,
          seen_qid/1, disconnect/1, sanitize_msg/1, 
-         register_transfer/2, consume_transfer/1
+         register_transfer/2, consume_transfer/1,
+         stream_started/2, stream_ended/1, streams/0
         ]).
 
 %% gen_server callbacks
@@ -37,6 +38,10 @@ seen_qid(Qid) -> gen_server:cast(?MODULE, {seen_qid, Qid}).
 
 register_transfer(Key, Pid) -> gen_server:cast(?MODULE, {register_transfer, Key, Pid}).
 consume_transfer(Key) -> gen_server:call(?MODULE, {consume_transfer, Key}).
+
+stream_started(Pid, Sid) -> gen_server:cast(?MODULE, {stream_started, Pid, Sid}).
+stream_ended(Pid) -> gen_server:cast(?MODULE, {stream_ended, Pid}).
+streams() -> gen_server:call(?MODULE, {streams}).
 
 %% ====================================================================
 %% Server functions
@@ -88,7 +93,12 @@ handle_call(peers, _From, State) ->
 handle_call(bytes, _From, State) -> 
     {reply, ets:tab2list(State#state.piddb), State};
 
-handle_call({consume_transfer, Key}, _From, State) -> {reply, erlang:erase(Key), State};    
+handle_call({consume_transfer, Key}, _From, State) -> {reply, erlang:erase({transfer, Key}), State};    
+    
+handle_call({streams}, _From, State) ->
+    Streams = [ {Pid, Sid, Localtime, Nowtime} 
+                || {{stream, Pid}, {Sid, Localtime, Nowtime}} <- erlang:get() ],
+    {reply, Streams, State};
     
 handle_call({register_connection, Pid, Name, Sharing = {WeShare, TheyShare}}, _From, State) ->
     % TODO we should probably kick the old conn with this name
@@ -110,8 +120,17 @@ handle_call({register_connection, Pid, Name, Sharing = {WeShare, TheyShare}}, _F
 
 %%
 
+handle_cast({stream_started, Pid, Sid}, State) ->
+    link(Pid),
+    erlang:put({stream, Pid}, {Sid, erlang:localtime(), erlang:now()}),
+    {noreply, State};
+
+handle_cast({stream_ended, Pid}, State) -> 
+    erlang:erase({stream, Pid}),
+    {noreply, State};
+
 handle_cast({register_transfer, Key, Pid}, State) -> 
-    erlang:put(Key, Pid),
+    erlang:put({transfer, Key}, Pid),
     {noreply, State};
 
 handle_cast({seen_qid, Qid}, State) ->
@@ -181,6 +200,7 @@ handle_info(calculate_bandwidth_secs, State) ->
 
 
 handle_info({'EXIT', Pid, _Reason}, State) ->
+    erlang:erase({stream, Pid}), % might exist
     case ets:lookup(State#state.piddb, Pid) of
         [{_, Name, _Bw, _Sharing}] ->
             ?LOG(info, "Removing user from registered cons: ~p", [Name]),
