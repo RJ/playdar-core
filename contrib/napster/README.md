@@ -4,7 +4,7 @@ Playdar napster resolver
 Create a file that looks like this:
 
 	$ cat playdar-core/etc/napster.conf
-	[napsdar]
+	[napster]
 	apikey=napsterApiKey
 
 If you have a napster account, you can add 
