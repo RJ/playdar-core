@@ -285,7 +285,7 @@ handle_stream_request(Direction, Ref, Sid, State = #state{inout=out}) ->
                         {ok, Pid} = playdartcp_stream:start(Sock, recv),
                         gen_tcp:controlling_process(Sock, Pid)
                 end,
-                ?LOG(info, "Created stream process for ~s to ~p:~p", [Sid, Address, Port]),
+                ?LOG(info, "Created stream process(~p) for ~s to ~p:~p", [Pid, Sid, Address, Port]),
                 ok;      
             {error, timeout} ->
                 ?LOG(warn, "Failing to connect to ~p:~p for streaming", [Address,Port]),

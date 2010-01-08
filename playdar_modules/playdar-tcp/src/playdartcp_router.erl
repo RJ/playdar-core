@@ -199,13 +199,17 @@ handle_info(calculate_bandwidth_secs, State) ->
     {noreply, State};
 
 
-handle_info({'EXIT', Pid, _Reason}, State) ->
-    erlang:erase({stream, Pid}), % might exist
+handle_info({'EXIT', Pid, Reason}, State) ->
+    ?LOG(info, "Caught exit of ~p because ~p", [Pid, Reason]),
+    _Streamrm = erlang:erase({stream, Pid}),
     case ets:lookup(State#state.piddb, Pid) of
         [{_, Name, _Bw, _Sharing}] ->
             ?LOG(info, "Removing user from registered cons: ~p", [Name]),
             ets:delete(State#state.namedb, Name),
             ets:delete(State#state.piddb, Pid),
+            {noreply, State};
+        _X -> 
+            nevermind,
             {noreply, State}
     end.
 

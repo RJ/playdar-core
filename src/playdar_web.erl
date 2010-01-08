@@ -79,7 +79,7 @@ loop1(Req, DocRoot) ->
                             process_flag(trap_exit, true),
                             Spid = Sfun(),
                             ?LOG(info, "Stream fun pid: ~p", [Spid]),
-                            link(Spid),
+                            %link(Spid),
                             stream_result(Req, Ref)
                     end
             end;
@@ -261,11 +261,11 @@ stream_result_body(Req, Resp, Ref) ->
             err;
         
         {Ref, eof} ->
-            ok;
+            ok
         
-        {'EXIT', Pid, Reason} ->
-            ?LOG(warn, "Streamer process ~p exited (body): ~p", [Pid, Reason]),
-            stream_result_body(Req, Resp, Ref)
+        %{'EXIT', Pid, Reason} ->
+        %    ?LOG(warn, "Streamer process ~p exited (body): ~p", [Pid, Reason]),
+        %    stream_result_body(Req, Resp, Ref)
     
     after 10000 ->
             ?LOG(info, "10secs timeout on streaming~n",[]),
