@@ -81,7 +81,7 @@ handle_info({Ref, error, Reason}, State=#state{current=send_stream_body,
     Msg = ?T2B({sid_response, Ref, Sid, {error, Reason}}),
     ok = gen_tcp:send(Sock, Msg),
     gen_tcp:close(Sock),
-    {stop, normal, State};
+    {stop, norsmal, State};
 
 handle_info({Ref, eof}, State=#state{current=send_stream_body, 
                                      sock=Sock, ref=Ref, sid=Sid}) ->

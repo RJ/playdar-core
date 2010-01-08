@@ -24,30 +24,33 @@ index(Path, Req, DocRoot) ->
     case Path of
         "" ->
             Streams = get_streams(),
-            ?LOG(info, "~p", [Streams]),
+            Peers   = get_peers(),
+            %?LOG(info, "~p", [Streams]),
             Vars = [{ftok, playdar_auth:gen_formtoken()},
                     {streams, Streams},
-                    {peers,
-                     [ begin
-                           ShareWe   = case WeShare of true -> "yes"; _ -> "no" end,
-                           ShareThey = case TheyShare of true -> "yes"; _ -> "no" end,
-                           {{{Y,M,D},{H,Min,S}},{ok, Stats}} = playdartcp_conn:stats(P),
-                           Date = io_lib:format("~w/~2..0w/~2..0w ~2..0w:~2..0w:~2..0w",[Y,M,D,H,Min,S]),
-                           [ {name, N}, 
-                             {pid, io_lib:format("~p",[P])},
-                             {conndate, Date},
-                             {stats, Stats},
-                             {weshare, ShareWe},
-                             {theyshare, ShareThey} ]
-                       end 
-                       || {N,P,{WeShare, TheyShare}} <- playdartcp_router:peers() ]
-                    }],
+                    {peers, Peers}
+                   ],
             
             playdar_web:render(Req, DocRoot ++ "/playdartcp/index.html", Vars);
         
         _ ->
             Req:not_found()
     end.
+
+get_peers() ->
+    [ begin
+          ShareWe   = case WeShare of true -> "yes"; _ -> "no" end,
+          ShareThey = case TheyShare of true -> "yes"; _ -> "no" end,
+          {{{Y,M,D},{H,Min,S}},{ok, Stats}} = playdartcp_conn:stats(P),
+          Date = io_lib:format("~w/~2..0w/~2..0w ~2..0w:~2..0w:~2..0w",[Y,M,D,H,Min,S]),
+          [ {name, N}, 
+            {pid, io_lib:format("~p",[P])},
+            {conndate, Date},
+            {stats, Stats},
+            {weshare, ShareWe},
+            {theyshare, ShareThey} ]
+      end 
+      || {N,P,{WeShare, TheyShare}} <- playdartcp_router:peers() ].
 
 get_streams() ->
     S  = playdartcp_router:streams(),
