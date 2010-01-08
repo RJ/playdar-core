@@ -1,4 +1,6 @@
 % manages tcp connection used for transfering files
+% TODO push all state into the registry held by the router, inc the Sock
+% so stats can be extracted outside this process (it's spammed by data)
 -module(playdartcp_stream).
 -behaviour(gen_server).
 -include("playdar.hrl").
@@ -170,8 +172,13 @@ handle_packet({sending, Ref, Sid}, State = #state{current=setup, mode=Mode, sock
                 _ -> nothing
             end,
             ?LOG(info, "current -> receive_stream", []),
-            playdartcp_router:stream_started(Pid, Sid),
             State1 = lookup_track(Sid, State),
+            playdartcp_router:stream_started(self(), Sid, 
+                                             [{now, State#state.start_now},
+                                              {localtime, State#state.start_localtime},
+                                              {track, State1#state.track},
+                                              {mode, receive_stream},
+                                              {sock, Sock}]),
             {noreply, State1#state{current=receive_stream,ref=Ref, sid=Sid, pid=Pid}};
                     
         unknown ->
@@ -200,6 +207,12 @@ handle_packet({requesting, Ref, Sid}, State = #state{current=setup, mode=Mode, s
                 Sfun ->         
                     Sfun(),
                     State1 = lookup_track(Sid, State),
+                    playdartcp_router:stream_started(self(), Sid, 
+                                             [{now, State#state.start_now},
+                                              {localtime, State#state.start_localtime},
+                                              {track, State1#state.track},
+                                              {mode, send_stream},
+                                              {sock, Sock}]),
                     {noreply, State1#state{current=send_stream, ref=Ref, sid=Sid}}                    
             end;
 

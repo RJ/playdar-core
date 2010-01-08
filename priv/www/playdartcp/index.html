@@ -1,6 +1,9 @@
 {% extends "../base.tpl" %}
 {% block content %}
-<h3>Peers</h3>
+<h3>Peers ({{peers|length}})</h3>
+{% if not peers %}
+You can connect to peers using: <pre>playdarctl connect &lt;host&gt; &lt;port&gt; &lt;true|false&gt;</pre>
+{% else %}
 <table style="width:100%">
 <tr style="font-weight:bold">
 <td>Name</td>
@@ -24,4 +27,29 @@
 </tr>
 {% endfor %}
 </table>
+{% endif %}
+
+<h3>Streams ({{streams|length}})</h3>
+{% if not streams %}
+<i>No active p2p transfers</i>
+{% else %}
+<table style="width:100%">
+<tr style="font-weight:bold">
+<td>Track</td>
+<td>Mode</td>
+<td>Bytes Transferred</td>
+<td>Avg Speed (Kbps)</td>
+</tr>
+{% for s in streams %}
+<tr style="background-color: {% cycle white,lightyellow %}">
+<td>{{s.artist|force_escape}} - {{s.track|force_escape}} &nbsp; <i>{{s.album|force_escape}}</i></td>
+<td>{{s.mode}}</td>
+<td>{{s.transferred}}</td>
+<td>{{s.kbps}}</td>
+</tr>
+{% endfor %}
+</table>
+{% endif %}
+
+
 {% endblock %}
