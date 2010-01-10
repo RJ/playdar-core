@@ -55,8 +55,12 @@ http_req(Req, DocRoot) ->
                     %MType = content_type(Jsonp /= undefined),
                     MType = "multipart/x-mixed-replace",
                     Response = Req:ok({MType, [], chunked}),
-                    Response:write_chunk("<html><head></head><body>"),
-                    comet_loop(Response, Jsonp, Cid)
+                    case Mode = proplists:get_value("mode", Qs) of
+                        "raw" -> ok;
+                        _ ->
+                            Response:write_chunk("<html><head></head><body>")
+                    end,
+                    comet_loop(Response, Jsonp, Cid, Mode)
             end;
             
         _ ->
@@ -132,7 +136,7 @@ http_req_authed(Req, _DocRoot, Method, Qs, _Auth) ->
             Req:not_found()
     end.
 
-comet_loop(Resp, Jsonp, Cid) ->
+comet_loop(Resp, Jsonp, Cid, Mode) ->
     receive
         {results, Qid, Results} ->
             R = {struct, [{<<"method">>, <<"results">>},
@@ -140,9 +144,14 @@ comet_loop(Resp, Jsonp, Cid) ->
                           {<<"results">>, Results}]},
             ?LOG(info, "Writing COMET response for ~s", [Qid]),
             Body = encode_response( R, Jsonp ),
-            Resp:write_chunk( io_lib:format("<script type=\"text/javascript\">~s</script>~n", 
-                                            [Body]) ),
-            comet_loop(Resp, Jsonp, Cid)
+            case Mode of
+                "raw" ->
+                    Resp:write_chunk( Body ++ "\n\n" );
+                _ ->
+                    Resp:write_chunk( io_lib:format("<script type=\"text/javascript\">~s</script>\n\n", 
+                                            [Body]) )
+            end,
+            comet_loop(Resp, Jsonp, Cid, Mode)
     end.    
 
 get_results(Req, Qs) ->
