@@ -49,7 +49,10 @@ init([Sock, InOut, Share]) ->
         out ->
             % Needs more DRY - props also created in response to auth packet below
             PublicPort = ?CONFVAL({playdartcp,port},60211),
-            Props = [{share, Share}, {public_port, PublicPort}],
+            Props = [{share, Share}, 
+                     {public_port, PublicPort},
+                     {protover, ?PROTOVER}
+                    ],
             Msg = ?T2B({auth, ?CONFVAL(name, "unknown"), Props}),
             ok = gen_tcp:send(Sock, Msg);
         in ->
@@ -146,27 +149,37 @@ code_change(_OldVsn, State, _Extra) ->
 %% Incoming auth/peer ID:
 handle_packet({auth, Name, Props}, State = #state{sock=Sock, authed=false}) when is_list(Name), is_list(Props) -> 
     ?LOG(info, "new playdartcp connection authed as ~s, props: ~p", [Name, Props]),
-    Sharing = {State#state.weshare, proplists:get_value(share, Props, false)==true},
-    case playdartcp_router:register_connection(self(), Name, Sharing) of 
-        ok ->
-            TheyShare = proplists:get_value(share, Props) == true,
-            % send our details to them if the connection was inbound, ie we didnt send yet:
-            case State#state.inout of
-                in ->
-                    DefName = "unknown-"++erlang:integer_to_list(random:uniform(9999999)), % HACK
-                    % tell them if we are sharing content with them:
-                    PublicPort = ?CONFVAL({playdartcp,port},60211),
-                    OurProps = [{share, State#state.weshare}, {public_port, PublicPort}],
-                    M = ?T2B({auth, ?CONFVAL(name, DefName), OurProps}),
-                    ok = gen_tcp:send(Sock, M),
-                    {noreply, State#state{authed=true, name=Name, props=Props, theyshare=TheyShare}};
-                out ->
-                    {noreply, State#state{authed=true, name=Name, props=Props, theyshare=TheyShare}}
-            end;
-        
-        disconnect ->
-            ?LOG(info, "Abandoning connection, duplicate name",[]),
-            {stop, normal, State}
+    Theirver = proplists:get_value(protover, Props, -1),
+    if 
+      Theirver < ?PROTOVER ->
+           ?LOG(info, "Remote protocol version incompatible, kicking", []),
+           {stop, normal, State};
+      true ->
+          Sharing = {State#state.weshare, proplists:get_value(share, Props, false)==true},
+          case playdartcp_router:register_connection(self(), Name, Sharing) of 
+              ok ->
+                  TheyShare = proplists:get_value(share, Props) == true,
+                  % send our details to them if the connection was inbound, ie we didnt send yet:
+                  case State#state.inout of
+                      in ->
+                          DefName = "unknown-"++erlang:integer_to_list(random:uniform(9999999)), % HACK
+                          % tell them if we are sharing content with them:
+                          PublicPort = ?CONFVAL({playdartcp,port},60211),
+                          OurProps = [{share, State#state.weshare}, 
+                                      {public_port, PublicPort},
+                                      {protover, ?PROTOVER}
+                                     ],
+                          M = ?T2B({auth, ?CONFVAL(name, DefName), OurProps}),
+                          ok = gen_tcp:send(Sock, M),
+                          {noreply, State#state{authed=true, name=Name, props=Props, theyshare=TheyShare}};
+                      out ->
+                          {noreply, State#state{authed=true, name=Name, props=Props, theyshare=TheyShare}}
+                  end;
+              
+              disconnect ->
+                  ?LOG(info, "Abandoning connection, duplicate name",[]),
+                  {stop, normal, State}
+          end
     end;
 
 %% Incoming query:
@@ -285,7 +298,7 @@ handle_stream_request(Direction, Ref, Sid, State = #state{inout=out}) ->
                         {ok, Pid} = playdartcp_stream:start(Sock, recv),
                         gen_tcp:controlling_process(Sock, Pid)
                 end,
-                ?LOG(info, "Created stream process for ~s to ~p:~p", [Sid, Address, Port]),
+                ?LOG(info, "Created stream process(~p) for ~s to ~p:~p", [Pid, Sid, Address, Port]),
                 ok;      
             {error, timeout} ->
                 ?LOG(warn, "Failing to connect to ~p:~p for streaming", [Address,Port]),

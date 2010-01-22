@@ -7,9 +7,8 @@ playdar (via ssh) to your work machine, for example.
 It is also hoped that people will host playdar nodes with large free repos,
 such as magnatune, archive.org etc. This resolver would be useful for that.
 
-Currently streams are multiplexed (with no flow control) down the same pipe
-as queries, so you will notice whilst streaming over a low bandwidth link
-that queries can't be recieved at the same time. (will be fixed "soon").
+The first connection established is used for search queries and results, 
+and to initiate streams. Each stream is sent using a new tcp connection.
 
 ***ATTENTION***
 
@@ -32,5 +31,5 @@ with the node you're connecting to.
 
 To see who you're connected to, check the playdartcp page on:
 
- http://localhost:60210/
+ http://localhost:60210/playdartcp
 

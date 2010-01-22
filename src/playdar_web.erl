@@ -25,8 +25,8 @@ loop(Req, DocRoot) ->
 	{R1,R2,R3} = now(),
 	random:seed(R1,R2,R3),
     Peer = Req:get(peer),
-    ?LOG(info, "~s ~s ~s", [string:to_upper(atom_to_list(Req:get(method))),
-                            Req:get(raw_path), Peer]),
+    ?LOG(info, "~s ~s ~s ~p", [string:to_upper(atom_to_list(Req:get(method))),
+                            Req:get(raw_path), Peer, self()]),
     % Reqs from localhost can do anything
     % reqs from elsewhere are only allowed to stream.
     % this presumes they did the resolving using lan plugin or something.
@@ -77,7 +77,10 @@ loop1(Req, DocRoot) ->
                         undefined ->
                             Req:respond({503, [], <<"Playdar server error: no such protocol handler">>});
                         Sfun -> 
-                            Sfun(),
+                            process_flag(trap_exit, true),
+                            Spid = Sfun(),
+                            ?LOG(info, "Stream fun pid: ~p", [Spid]),
+                            %link(Spid),
                             stream_result(Req, Ref)
                     end
             end;
@@ -252,7 +255,11 @@ stream_result(Req, Ref) ->
             stream_result_body(Req, Resp, Ref);
         
         {Ref, error, _Reason} ->
-            Req:respond({503, [], <<"Internal fail streaming this resource">>})
+            Req:respond({503, [], <<"Internal fail streaming this resource">>});
+        
+        {'EXIT', Pid, Reason} when Reason /= normal ->
+            ?LOG(warn, "Streamer process ~p crashed (headers): ~p", [Pid, Reason]),
+            Req:respond({503, [], <<"Streamer crashed">>})
             
         after 12000 ->
             Req:ok({"text/plain", [{"Server", "Playdar"}], "Timeout on headers/initialising stream"})
@@ -269,9 +276,13 @@ stream_result_body(Req, Resp, Ref) ->
         
         {Ref, eof} ->
             ok
+        
+        %{'EXIT', Pid, Reason} ->
+        %    ?LOG(warn, "Streamer process ~p exited (body): ~p", [Pid, Reason]),
+        %    stream_result_body(Req, Resp, Ref)
     
     after 10000 ->
-        io:format("10secs timeout on streaming~n",[]),
+            ?LOG(info, "10secs timeout on streaming~n",[]),
             timeout
     end.
     

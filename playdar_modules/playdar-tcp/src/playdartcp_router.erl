@@ -6,13 +6,14 @@
 -export([start_link/1, register_connection/3, send_query_response/3, 
 		 connect/2, connect/3, peers/0, bytes/0, broadcast/1, broadcast/2, broadcast/3,
          seen_qid/1, disconnect/1, sanitize_msg/1, 
-         register_transfer/2, consume_transfer/1
+         register_transfer/2, consume_transfer/1,
+         stream_started/3, stream_ended/1, streams/0
         ]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(state, {listener, conns, seenqids, piddb, namedb}).
+-record(state, {listener, conns, seenqids, piddb, namedb, streamsdb}).
 
 start_link(Port) -> gen_server:start({local, ?MODULE}, ?MODULE, [Port], []).
 
@@ -38,6 +39,13 @@ seen_qid(Qid) -> gen_server:cast(?MODULE, {seen_qid, Qid}).
 register_transfer(Key, Pid) -> gen_server:cast(?MODULE, {register_transfer, Key, Pid}).
 consume_transfer(Key) -> gen_server:call(?MODULE, {consume_transfer, Key}).
 
+stream_started(Pid, Sid, Props) -> 
+    gen_server:cast(?MODULE, {stream_started, Pid, Sid, Props}).
+stream_ended(Pid) -> 
+    gen_server:cast(?MODULE, {stream_ended, Pid}).
+streams() -> 
+    gen_server:call(?MODULE, {streams}).
+
 %% ====================================================================
 %% Server functions
 %% ====================================================================
@@ -56,7 +64,8 @@ init([Port]) ->
 					seenqids=ets:new(seenqids,[]), 
 					conns=[],
                     piddb=ets:new(piddb,[]),
-                    namedb=ets:new(namedb,[])
+                    namedb=ets:new(namedb,[]),
+                    streamsdb=ets:new(streamsdb,[])
                }}.
 
 handle_call({disconnect, Name}, _From, State) ->
@@ -88,7 +97,12 @@ handle_call(peers, _From, State) ->
 handle_call(bytes, _From, State) -> 
     {reply, ets:tab2list(State#state.piddb), State};
 
-handle_call({consume_transfer, Key}, _From, State) -> {reply, erlang:erase(Key), State};    
+handle_call({consume_transfer, Key}, _From, State) -> {reply, erlang:erase({transfer, Key}), State};    
+    
+handle_call({streams}, _From, State) ->
+    R = [ {Pid, Sid, Props} || 
+          {Pid, {Sid, Props}} <- ets:tab2list(State#state.streamsdb) ],
+    {reply, R, State};
     
 handle_call({register_connection, Pid, Name, Sharing = {WeShare, TheyShare}}, _From, State) ->
     % TODO we should probably kick the old conn with this name
@@ -110,8 +124,17 @@ handle_call({register_connection, Pid, Name, Sharing = {WeShare, TheyShare}}, _F
 
 %%
 
+handle_cast({stream_started, Pid, Sid, Props}, State) ->
+    link(Pid),
+    ets:insert(State#state.streamsdb, {Pid, {Sid, Props}}), 
+    {noreply, State};
+
+handle_cast({stream_ended, Pid}, State) ->
+    ets:delete(State#state.streamsdb, Pid),
+    {noreply, State};
+
 handle_cast({register_transfer, Key, Pid}, State) -> 
-    erlang:put(Key, Pid),
+    erlang:put({transfer, Key}, Pid),
     {noreply, State};
 
 handle_cast({seen_qid, Qid}, State) ->
@@ -180,12 +203,17 @@ handle_info(calculate_bandwidth_secs, State) ->
     {noreply, State};
 
 
-handle_info({'EXIT', Pid, _Reason}, State) ->
+handle_info({'EXIT', Pid, Reason}, State) ->
+    ?LOG(info, "Caught exit of ~p because ~p", [Pid, Reason]),
+    ets:delete(State#state.streamsdb, Pid), % might be a stream process
     case ets:lookup(State#state.piddb, Pid) of
         [{_, Name, _Bw, _Sharing}] ->
             ?LOG(info, "Removing user from registered cons: ~p", [Name]),
             ets:delete(State#state.namedb, Name),
             ets:delete(State#state.piddb, Pid),
+            {noreply, State};
+        _X -> 
+            nevermind,
             {noreply, State}
     end.
 
