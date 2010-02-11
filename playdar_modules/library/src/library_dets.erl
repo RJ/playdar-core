@@ -60,7 +60,7 @@ init([]) ->
     % start the scanner (kind of a hack, but deadlock if we do it in init here):
     self() ! start_scanner,        
     playdar_resolver:add_resolver(?MODULE, self()),
-    FswatcherPid = fswatcher_driver:start_link(self(), music_dirs(Fdb)),
+    FswatcherPid = undefined, % TODO mac-only: fswatcher_driver:start_link(self(), music_dirs(Fdb)),
     {ok, #state{scanner=undefined, ndb=Ndb, fdb=Fdb, customname="", fswpid=FswatcherPid}}.
 
 handle_cast(sync, State) -> 
