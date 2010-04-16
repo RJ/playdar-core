@@ -150,7 +150,7 @@ handle_call({add_file, File, Mtime, Size, Tags}, _From, State) when is_list(Tags
 
 handle_call({scan, Dir}, From, State) ->
     dets:insert(State#state.fdb, {music_dirs, music_dirs(State#state.fdb)++[Dir]}),
-    fswatcher_driver:watch(Dir),
+    %fswatcher_driver:watch(Dir),
 
     spawn(fun()->
                   gen_server:reply(From, (catch scanner:scan_dir(State#state.scanner, Dir)))
