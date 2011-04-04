@@ -55,8 +55,8 @@ class AmpacheResolver(playdar_resolver.PlaydarResolver):
 			# so scoring is simple:
 			score = 1.0
 			for s in songs:
-				if soundex(s.title) == soundex(query['track']) \
-				  and soundex(s.artist['name']) == soundex(query['artist']) \
+
+				if s.artist['name'].lower() == query['artist'].lower() \
 				  and score > 0.5: 
 					
 					results.append( 
