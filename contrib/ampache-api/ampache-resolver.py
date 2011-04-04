@@ -15,7 +15,7 @@ from ConfigParser import ConfigParser
 from playdar_resolver import soundex
 
 
-configuration = os.path.join(os.path.dirname(sys.argv[0]), "ampache_resolver.cfg")
+configuration = os.path.join(os.path.dirname(sys.argv[0]), "ampache-resolver.cfg")
 
 
 class AmpacheResolver(playdar_resolver.PlaydarResolver):
