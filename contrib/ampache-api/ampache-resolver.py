@@ -5,7 +5,7 @@
 # using Ampache's Web API
 #
 # author: Remo Giermann <mo@liberejo.de>
-# created: 2010/04/03
+# created: 2011/04/03
 #
 
 import playdar_resolver

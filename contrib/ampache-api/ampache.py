@@ -2,7 +2,7 @@
 # This class speaks to the Ampache XML API
 #
 # author:  Remo Giermann <mo@liberejo.de>
-# created: 2010/03/31
+# created: 2011/03/31
 # 
 
 import time, urllib
