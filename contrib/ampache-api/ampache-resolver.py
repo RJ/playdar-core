@@ -8,12 +8,12 @@
 # created: 2011/04/03
 #
 
-import playdar_resolver
-import ampache
 import os, sys
 from ConfigParser import ConfigParser
-from playdar_resolver import soundex
 
+import ampache
+import playdar_resolver
+from playdar_resolver import soundex
 
 configuration = os.path.join(os.path.dirname(sys.argv[0]), "ampache-resolver.cfg")
 
