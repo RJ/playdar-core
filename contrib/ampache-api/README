@@ -1,0 +1,3 @@
+ This is an Ampache resolver which uses Ampache's XML Web-API.
+ To use it, one only needs a user account on any ampache installation.
+ It's possible to use multiple Ampache servers/accounts.
